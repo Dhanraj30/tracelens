@@ -4,6 +4,7 @@ import DependencyGraph, { computeHighlight } from './components/DependencyGraph'
 import Timeline from './components/Timeline'
 import Hypotheses from './components/Hypotheses'
 import Verdict from './components/Verdict'
+import History from './components/History'
 import { fmtTime } from './lib/format'
 
 const STEP_MS = 700
@@ -21,7 +22,8 @@ export default function App() {
   const [playing, setPlaying] = useState(true)
   const [evidence, setEvidence] = useState<string[]>([])
   const [hover, setHover] = useState<string[] | null>(null)
-  const [rightTab, setRightTab] = useState<'hypotheses' | 'verdict'>('hypotheses')
+  const [rightTab, setRightTab] = useState<'hypotheses' | 'verdict' | 'history'>('hypotheses')
+  const [historyKey, setHistoryKey] = useState(0)
   const timer = useRef<number | null>(null)
 
   const refresh = useCallback(async () => {
@@ -44,6 +46,7 @@ export default function App() {
     const m = q.get('mode') === 'llm' ? 'llm' : 'deterministic'
     setLoading(true); setReport(null); setStep(0); setEvidence([])
     if (q.get('tab') === 'hypotheses') preferredTab.current = 'hypotheses'
+    if (q.get('tab') === 'history') preferredTab.current = 'history'
     api.investigate(id, m).then((r) => {
       setReport(r)
       const fixed = q.get('step')
@@ -68,8 +71,8 @@ export default function App() {
   }, [report, playing])
 
   const done = !!report && step >= report.trace.length
-  const preferredTab = useRef<'hypotheses' | 'verdict' | null>(null)
-  useEffect(() => { if (done) setRightTab(preferredTab.current ?? 'verdict') }, [done, report])
+  const preferredTab = useRef<'hypotheses' | 'verdict' | 'history' | null>(null)
+  useEffect(() => { if (done) { setRightTab(preferredTab.current ?? 'verdict'); setHistoryKey((k) => k + 1) } }, [done, report])
 
   const investigate = async () => {
     setLoading(true); setError(null); setReport(null); setStep(0); setEvidence([]); setRightTab('hypotheses')
@@ -193,11 +196,13 @@ export default function App() {
               Hypotheses {visibleHyps.length ? `(${visibleHyps.filter((h) => h.status === 'supported').length} supported · ${visibleHyps.filter((h) => h.status === 'rejected').length} ruled out)` : ''}
             </button>
             <button onClick={() => setRightTab('verdict')} className={`px-3 py-2 ${rightTab === 'verdict' ? 'border-b-2 border-sky-400 text-white' : 'text-slate-400'}`}>Root cause & remediation</button>
+            <button onClick={() => { setRightTab('history'); setHistoryKey((k) => k + 1) }} className={`px-3 py-2 ${rightTab === 'history' ? 'border-b-2 border-sky-400 text-white' : 'text-slate-400'}`} title="All Investigation nodes in the graph, from any agent">Past investigations</button>
             {evidence.length > 0 && <button onClick={() => setEvidence([])} className="ml-auto px-3 text-[11px] text-slate-400 hover:text-white">clear highlight ✕</button>}
           </div>
           <div className="scroll-thin min-h-0 flex-1 overflow-auto">
-            {!report && <div className="flex h-full items-center justify-center p-6"><p className="max-w-[360px] text-center text-sm leading-relaxed text-slate-500">Hypotheses are generated from deployments on the dependency path, then each is tested with graph checks. Ruled-out suspects stay visible, with the evidence that ruled them out.</p></div>}
-            {report && !done && <div className="p-6 text-center text-sm text-slate-500 pulse">gathering evidence… ({Math.min(step, report.trace.length)}/{report.trace.length} tool calls)</div>}
+            {rightTab === 'history' && <History refreshKey={historyKey} onEvidence={setEvidence} />}
+            {rightTab !== 'history' && !report && <div className="flex h-full items-center justify-center p-6"><p className="max-w-[360px] text-center text-sm leading-relaxed text-slate-500">Hypotheses are generated from deployments on the dependency path, then each is tested with graph checks. Ruled-out suspects stay visible, with the evidence that ruled them out.</p></div>}
+            {rightTab !== 'history' && report && !done && <div className="p-6 text-center text-sm text-slate-500 pulse">gathering evidence… ({Math.min(step, report.trace.length)}/{report.trace.length} tool calls)</div>}
             {report && done && rightTab === 'hypotheses' && <Hypotheses hyps={visibleHyps} onEvidence={setEvidence} selected={evidence} />}
             {report && done && rightTab === 'verdict' && <Verdict report={report} onEvidence={(ids) => { setEvidence(ids) }} onAction={onAction} />}
           </div>

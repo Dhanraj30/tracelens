@@ -1,5 +1,5 @@
 # Guest agent only. The core backend never imports these.
-langchain>=1.0
+# LangChain 1.4+ ships MCP support as langchain[mcp] (the old langchain-mcp-adapters repo is archived).
+langchain[mcp]>=1.4
 langgraph>=1.0
-langchain-mcp-adapters>=0.1
 langchain-openai>=1.0

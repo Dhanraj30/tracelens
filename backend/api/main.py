@@ -1,6 +1,7 @@
 """TraceLens API. FastAPI serves the JSON API and (in the Docker image) the built frontend."""
 from __future__ import annotations
 
+import json
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -103,19 +104,60 @@ def investigate(req: InvestigateRequest) -> dict[str, Any]:
 
 @app.get("/api/investigations")
 def list_investigations() -> list[dict[str, Any]]:
+    """Every investigation in the graph, whoever wrote it (engine or an MCP guest agent)."""
     g = get_graph()
     rows, _ = g.read(
         "MATCH (inv:Investigation)-[:INVESTIGATED]->(i:Incident) OPTIONAL MATCH (inv)-[:PROPOSED]->(a:Action) "
-        "RETURN inv.id, inv.at, inv.mode, inv.outcome, inv.tool_calls, inv.confidence, i.id, i.title, a.id, a.status ORDER BY inv.at DESC"
+        "OPTIONAL MATCH (inv)-[:CONSIDERED]->(h:Hypothesis) "
+        "WITH inv, i, a, collect({status: h.status, label: h.label}) AS hyps "
+        "RETURN inv.id, inv.at, inv.mode, inv.outcome, inv.tool_calls, inv.confidence, i.id, i.title, a.id, a.status, "
+        "coalesce(inv.agent, 'engine'), coalesce(inv.verified, true), hyps ORDER BY inv.at DESC"
     )
-    return [dict(zip(["id", "at", "mode", "outcome", "tool_calls", "confidence", "incident_id", "incident_title", "action_id", "action_status"], r)) for r in rows]
+    out = []
+    for r in rows:
+        d = dict(zip(["id", "at", "mode", "outcome", "tool_calls", "confidence", "incident_id", "incident_title", "action_id", "action_status", "agent", "verified", "hyps"], r))
+        hyps = [h for h in d.pop("hyps") if h.get("status")]
+        d["supported"] = sum(1 for h in hyps if h["status"] == "supported")
+        d["rejected"] = sum(1 for h in hyps if h["status"] == "rejected")
+        out.append(d)
+    return out
 
 
 @app.get("/api/investigations/{investigation_id}")
 def get_investigation(investigation_id: str) -> dict[str, Any]:
+    """Full in-process report when available; otherwise the durable record from the graph (agent, trace, hypotheses, evidence edges)."""
     if investigation_id in REPORTS:
         return REPORTS[investigation_id]
-    raise HTTPException(status_code=404, detail="investigation not found in this process (full traces are kept in memory; summary via GET /api/investigations)")
+    g = get_graph()
+    rows, _ = g.read(
+        "MATCH (inv:Investigation {id: $id})-[:INVESTIGATED]->(i:Incident)-[:AFFECTS]->(s:Service) OPTIONAL MATCH (inv)-[:PROPOSED]->(a:Action) "
+        "RETURN inv.id, inv.at, inv.mode, inv.outcome, inv.tool_calls, inv.confidence, coalesce(inv.agent,'engine'), coalesce(inv.verified,true), inv.trace, "
+        "i.id, i.title, i.symptom, i.opened_at, s.name, a.id, a.status, a.summary, a.deployment_id, a.runbook_id",
+        {"id": investigation_id},
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="investigation not found")
+    r = rows[0]
+    hrows, _ = g.read(
+        "MATCH (inv:Investigation {id: $id})-[:CONSIDERED]->(h:Hypothesis) OPTIONAL MATCH (h)-[e:SUPPORTED_BY|REJECTED_BY]->(n) "
+        "OPTIONAL MATCH (h)-[:SUSPECTS]->(sus) "
+        "RETURN h.id, h.status, h.score, h.kind, h.label, h.confirmed, collect(DISTINCT coalesce(sus.id, sus.name)), "
+        "collect({type: type(e), check: e.check, target: coalesce(n.id, n.name)}) ORDER BY h.status, h.id",
+        {"id": investigation_id},
+    )
+    hypotheses = []
+    for h in hrows:
+        edges = [e for e in h[7] if e.get("type")]
+        hypotheses.append({"id": h[0], "status": h[1], "score": h[2], "kind": h[3], "label": h[4], "confirmed": h[5], "suspects": [s for s in h[6] if s],
+                           "supported_by": [e for e in edges if e["type"] == "SUPPORTED_BY"], "rejected_by": [e for e in edges if e["type"] == "REJECTED_BY"]})
+    try:
+        trace = json.loads(r[8] or "[]")
+    except json.JSONDecodeError:
+        trace = []
+    return {"id": r[0], "at": r[1], "mode": r[2], "outcome": r[3], "tool_calls": r[4], "confidence": r[5], "agent": r[6], "verified": r[7],
+            "trace": trace, "incident": {"id": r[9], "title": r[10], "symptom": r[11], "opened_at": r[12], "service": r[13]},
+            "action": {"id": r[14], "status": r[15], "summary": r[16], "deployment_id": r[17], "runbook_id": r[18]} if r[14] else None,
+            "hypotheses": hypotheses, "source": "graph"}
 
 
 @app.post("/api/actions/{action_id}/approve")

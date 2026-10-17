@@ -1,0 +1,32 @@
+D:\graph-hack\tracelens\agents\langgraph_guest\agent.py:102: LangChainBetaWarning: `langchain.mcp` is in beta. It is actively being worked on, so the API may change.
+  from langchain.mcp import MCPAdapter
+[guest] live run start 19:01:26 incident=inc-1042
+[guest] MCP tools offered to the model: get_incident, upstream_dependencies, deployments_in_window, error_timeline, healthy_siblings, similar_incidents, path_between, critical_services, recall, record_investigation  (excluded: investigate, list_catalog, record_action)
+
+ 1. get_incident(incident_id=inc-1042)
+      model's stated reason (unverified): fetch incident details
+      -> Checkout requests are failing affects checkout
+ 2. upstream_dependencies(depth=4, service=checkout)
+      model's stated reason (unverified): get upstream services
+      -> 9 upstream services within 4 hops
+ 3. recall(exclude_incident=inc-1042, from_ts=1791983400, services=[10], to_ts=1791987000)
+      model's stated reason (unverified): check past similar root cause
+      -> 0 prior investigation(s) recalled
+ 4. deployments_in_window(from_ts=1791983400, services=[10], to_ts=1791987000)
+      model's stated reason (unverified): candidate deployments
+      -> 3 deployment(s) in window
+ 5. error_timeline(from_ts=1791983400, services=[3], to_ts=1791987000)
+      model's stated reason (unverified): error events
+      -> 2 (service, signature) series; earliest at payments-api
+ 6. healthy_siblings(from_ts=1791983400, service=payments-api, to_ts=1791987000)
+      model's stated reason (unverified): check if other services on same tier healthy
+      -> 3 healthy, 0 unhealthy independent sibling(s); shared deps ruled out: kafka, postgres-payments
+ 7. record_investigation(agent=langgraph, incident_id=inc-1042, outcome=supported, summary=The high‑risk deployment dep-pay-1352 to payments‑api reduced the Postgres connection pool size, triggering PoolTimeoutError at 1791986280. Checkout subsequently saw UpstreamTimeout errors at 1791986460 as it could not reach payments‑api. No other upstream services showed errors, and sibling services remained healthy, making dep‑pay‑1352 the best‑supported explanation., suspects=[1])
+      model's stated reason (unverified): Payments API deployment changed DB pool size, causing PoolTimeoutError observed before checkout upstream timeouts; timeline and dependency path support it.
+      -> [{'type': 'text', 'text': '{\n  "ok": true,\n  "investigation_id": "inv-1792244002592",\n  "agent": "mcp:langgraph",\n  "claimed_outcome": "supported",\n  "veri
+
+[server] claimed=supported verified=root_cause_supported | dep-pay-1352=supported | stored as inv-1792244002592 by mcp:langgraph
+
+[guest] model=openai/gpt-oss-120b tool_calls=7 duration=133.7s
+The investigation identified the payments‑api deployment dep‑pay‑1352 (which reduced the Postgres connection‑pool max size) as the best‑supported cause of the incident. It triggered a PoolTimeoutError in payments‑api before checkout began seeing UpstreamTimeouts, and no other upstream services showed errors. All sibling services remained healthy, confirming dep‑pay‑1352 as the primary suspect.
+[guest] recording saved: D:\graph-hack\tracelens\agents\langgraph_guest\recordings\live-inc-1042-20261017T133403Z.json

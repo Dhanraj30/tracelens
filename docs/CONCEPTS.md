@@ -40,14 +40,18 @@ Plain-language notes on the AI/agent ideas behind TraceLens. Each section says: 
 
 **What they are.** Popular Python frameworks. LangChain wraps LLM calls, prompts and tools; LangGraph lets you define an agent as a graph of nodes with state passing between them.
 
-**Do we use them?** **No.** The investigation is ~500 lines of plain Python with explicit states and a `Check` / `Hypothesis` dataclass model.
+**Do we use them?** **Not in the core.** The investigation engine is ~500 lines of plain Python with explicit states and a `Check` / `Hypothesis` dataclass model, and `backend/` never imports LangChain or LangGraph.
 
-**Why not.**
-- The brief says FalkorDB must do the real work and the participant must be able to explain every decision. A framework hides control flow behind abstractions; a judge asking "what happens after the temporal check fails?" should get an answer by pointing at one `if`.
-- Zero learning cost during a weekend build, zero version churn, and the trace is a product feature rather than a debugging artifact.
-- Nothing in the task needs dynamic graph orchestration: the order of states is fixed; what varies is the *data*, and that comes from FalkorDB.
+**But there is a LangGraph agent in the repo**: `agents/langgraph_guest/`. It is an *outside* agent built with LangChain's `create_agent` (LangGraph runtime) that connects to TraceLens **only through MCP**. It sees the evidence tools plus `record_investigation`, never `investigate` / `record_action` / `list_catalog`, and never any Cypher. The model (Groq `openai/gpt-oss-120b`, Gemini fallback) chooses which tools to call and in what order; every call carries its stated reason, recorded as "model's stated reason (unverified)". When it calls `record_investigation`, the **server re-runs the rule-based checks** on the suspects it proposes and stores a hypothesis as `supported` only if the checks pass; a wrong suspect is stored as `rejected` with the failing checks. Its trace lands on the Investigation node with provenance `agent = "mcp:langgraph"`, so the dashboard's "Past investigations" tab shows it, and a later engine run can answer from its memory ("learned by mcp:langgraph").
 
-If someone asks "isn't this just LangGraph by hand?": yes, intentionally, a nine-node graph with fixed edges is simpler to read as a function than as a framework object.
+Live run (17 Oct 2026, gpt-oss-120b): it picked 7 tools — get_incident, upstream_dependencies, recall, deployments_in_window, error_timeline, healthy_siblings, record_investigation — skipped path_between and similar_incidents, proposed `dep-pay-1352`, and the server verified it 5/5. Same verdict as deterministic mode. (Log: `docs/test-results/langgraph-guest-live.txt`; recording: `agents/langgraph_guest/recordings/`.)
+
+**Why this split.**
+- The core stays explainable: a judge asking "what happens after the temporal check fails?" gets an answer by pointing at one `if`, and the trace is a product feature rather than a debugging artifact.
+- The guest demonstrates the thing Track 01 asks for, *tool selection through MCP*, with a real framework and a real LLM, while the **verdict never depends on the LLM**: the graph checks decide what gets stored.
+- Quota is guarded: tests replay a recorded tool-call sequence through a fake chat model (no network); a live run requires `RUN_LIVE_LLM=1`; hard caps of 12 tool calls and 16 model calls.
+
+If someone asks "isn't the engine just LangGraph by hand?": yes, intentionally, a nine-node graph with fixed edges is simpler to read as a function than as a framework object. And when a framework agent *is* useful, it plugs in from the outside through MCP without changing the core.
 
 ---
 

@@ -1,4 +1,6 @@
-"""Tests run against a REAL FalkorDB (docker compose up -d falkordb). They use a separate graph
+"""Root pytest fixtures, shared by tests/ and agents/langgraph_guest/tests/.
+
+Tests run against a REAL FalkorDB (docker compose up -d falkordb). They use a separate graph
 key `tracelens_test` so the demo graph is never touched."""
 from __future__ import annotations
 
@@ -13,14 +15,14 @@ os.environ.setdefault("GRAPH_NAME", "tracelens_test")
 from backend.db import Graph  # noqa: E402
 from backend.seed import clear_memory, reset_and_seed  # noqa: E402
 
-SCENARIOS = yaml.safe_load((Path(__file__).parent / "scenarios.yaml").read_text())["scenarios"]
+SCENARIOS = yaml.safe_load((Path(__file__).parent / "tests" / "scenarios.yaml").read_text())["scenarios"]
 
 
 @pytest.fixture(scope="session")
 def graph() -> Graph:
     g = Graph("tracelens_test")
     if not g.ping():
-        pytest.skip("FalkorDB not reachable on %s:%s" % (g._db.connection.connection_pool.connection_kwargs.get("host"), 6379))
+        pytest.skip("FalkorDB not reachable (docker compose up -d falkordb)")
     reset_and_seed(g)
     return g
 
