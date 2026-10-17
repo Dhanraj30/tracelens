@@ -15,9 +15,10 @@ Graph name: `tracelens` (tests use `tracelens_test`). All timestamps are **integ
 | `Resolution` | `id` | `summary`, `at` | |
 | `Runbook` | `id` | `title`, `steps` (list) | |
 | **Agent-written** | | | |
-| `Investigation` | `id` | `at`, `mode`, `outcome`, `tool_calls`, `confidence` | written by `record_investigation` |
+| `Investigation` | `id` | `at`, `mode`, `outcome`, `tool_calls`, `confidence`, **`agent`** (`engine` or `mcp:<name>`), **`verified`**, **`trace`** (compact JSON of the steps, incl. a guest's stated reasons) | written by `record_investigation`; guests' suspects are server-verified first |
 | `Hypothesis` | `id` | `status` (supported/rejected/inconclusive), `score`, `kind`, `label`, `confirmed` | rejected ones are kept on purpose |
 | `Action` | `id` | `kind`, `status` (proposed/approved/executed), `summary`, `deployment_id`, `runbook_id`, `simulated=true` | |
+| `Resolution` (learned) | `id` = `res-<action id>` | `summary`, `at`, **`source='tracelens'`**, `agent`, `investigation_id` | written by `record_action(executed)`; the incident becomes `status='resolved'` with `resolved_at` |
 
 ## Relationships
 
@@ -43,7 +44,19 @@ Graph name: `tracelens` (tests use `tracelens_test`). All timestamps are **integ
 (:Investigation)-[:PROPOSED]->(:Action)
 (:Action)-[:TARGETS]->(:Deployment)
 (:Action)-[:FOLLOWS]->(:Runbook)
+
+// learned on approval (simulated execution): the same shape as seeded history, so similar_incidents finds it
+(:Incident)-[:RESOLVED_BY]->(:Resolution {source:'tracelens'})-[:REVERTED]->(:Deployment)
+(:Resolution {source:'tracelens'})-[:FOLLOWED]->(:Runbook)
 ```
+
+## Graph keys (tenants)
+
+| Key | Use |
+|---|---|
+| `tracelens` | the demo graph (default) |
+| `tracelens:<tenant>` | one graph per tenant via `?tenant=<slug>` (`^[a-z0-9][a-z0-9-]{0,31}$`), auto-seeded; memory never crosses keys |
+| `tracelens_test` | pytest |
 
 `weight` on `DEPENDS_ON` (sync = 1, async = 2) is the `weightProp` used by `algo.SPpaths`, so the "shortest" path prefers synchronous call chains — the ones that propagate failures immediately.
 
@@ -82,6 +95,10 @@ refunds-worker ──► payments-api
 | 15:12 | search `EmptyResultSet` | Scenario C symptom |
 | 15:30 | `inc-1044` opened | Scenario C (inconclusive) |
 | −21 days | `inc-0877` PoolTimeoutError on payments-api, rolled back `dep-pay-h1`, runbook `rb-pool-sizing` | history reached via shared `ErrorSignature` |
+| +7 days 10:20 | `dep-auth-d` → auth | Scenario D candidate, **ruled out by origin** |
+| +7 days 10:40 | `dep-pay-d` → payments-api, pool max_size set to 8 | **Scenario D root cause** |
+| +7 days 10:47 / 10:50 | payments-api `PoolTimeoutError`, checkout `UpstreamTimeout` | |
+| +7 days 11:00 | `inc-1051` opened | Scenario D: history finds TraceLens's own `Resolution` of `inc-1042` once an operator approved it |
 
 ## Changes from the original brief
 
@@ -89,3 +106,4 @@ refunds-worker ──► payments-api
 - Added `Action-[:TARGETS]->Deployment` and `Action-[:FOLLOWS]->Runbook` so the remediation is a traversable link, not a string.
 - Added `Hypothesis.confirmed` (set when a human approves the Action) so memory can distinguish "agent-supported" from "operator-confirmed".
 - `SUPPORTED_BY` / `REJECTED_BY` may also target `Service` nodes (e.g. the healthy sibling that ruled out a shared dependency).
+- Added `Investigation.agent` / `verified` / `trace` for cross-agent provenance, `Resolution.source='tracelens'` for learned fixes, and a `Service`/`Deployment`-shaped Scenario D a week later.

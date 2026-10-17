@@ -55,7 +55,9 @@ cd frontend && npm install && npm run dev            # http://localhost:5173 (pr
 ### Tests (against a real FalkorDB container, separate graph key `tracelens_test`)
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m pytest -q           # 27 tests: one per tool, scenario ground truth, validator, unknown-entity guards
+PYTHONIOENCODING=utf-8 python -m pytest -q           # 37 tests: one per tool, scenario ground truth A–D, validator, unknown-entity guards,
+                                                     # MCP guards, cross-agent handoff, guest fake-model replay, tenant isolation
+pip install -r agents/langgraph_guest/requirements.txt   # optional: the LangGraph guest (its tests skip if not installed)
 ```
 
 ## The three scenarios
@@ -65,7 +67,10 @@ PYTHONIOENCODING=utf-8 python -m pytest -q           # 27 tests: one per tool, s
 | **A** | `inc-1042` Checkout requests are failing | Reject the checkout deploy (errors began 14:01, deploy 14:05), reject the cart deploy (earliest errors sit at payments-api, which cart never reaches), support the payments-api deploy that cut the DB pool 50 → 5, exonerate the shared database via a healthy sibling, match incident `inc-0877` through a shared `ErrorSignature`, propose rollback + runbook | `root_cause_supported`, 5/5 checks, 11 tool calls |
 | **B** | `inc-1043` Refunds failing (run after A) | `recall` the Investigation A wrote back, re-verify the timeline for refunds-worker, answer with "learned <date>" | `answered_from_memory`, 5 tool calls |
 | **C** | `inc-1044` Search results are empty | No deployments in window; the path leaves the modeled graph at an external vendor. Say so, list what was checked and what data would resolve it | `inconclusive` |
+| **D** | `inc-1051` Checkout failing again, a week later (run after approving A's rollback) | The payments-api deploy is a week old, so no recall; instead the history check finds the `Resolution` TraceLens itself wrote on approval, through the shared `ErrorSignature`, and reuses its runbook. The auth deploy is ruled out by origin | `root_cause_supported` with "learned by TraceLens" history |
 | — | `inc-9999` / `warehouse-robot` | Name does not resolve → stop | `unknown_entity`, **0 tool calls** |
+
+Cross-agent variants: run Scenario A from the MCP client (`python -m backend.mcp_client_demo inc-1042`) or the LangGraph guest (`RUN_LIVE_LLM=1 python -m agents.langgraph_guest.agent inc-1042`), then Scenario B in the dashboard answers "learned by mcp:client-demo / mcp:langgraph". The server re-verifies every suspect a guest proposes before storing it.
 
 Ground truth lives only in `tests/scenarios.yaml`; the agent reaches it through queries.
 
@@ -105,7 +110,8 @@ React + React Flow  ──/api──►  FastAPI  ──►  Investigator (bound
 - **Tool catalog** (`backend/tools/catalog.py`): typed, validated arguments; every service/incident name resolved against the graph before any query; reads via `GRAPH.RO_QUERY`; every call traced (tool, args, exact Cypher, params, ms, rows). [`docs/QUERIES.md`](docs/QUERIES.md) is generated from it.
 - **Algorithms:** `algo.SPpaths` (weighted path check), `algo.pageRank` + `algo.betweenness` (criticality weighting).
 - **Frontend:** Vite + React + TypeScript + Tailwind, React Flow + dagre; the traversal animates step by step; "Show Cypher" on every step.
-- **MCP server** (`backend/mcp_server.py`): exposes the same catalog (not raw Cypher) over stdio; `python -m backend.mcp_client_demo` drives Scenario A through it.
+- **MCP server** (`backend/mcp_server.py`): exposes the same catalog (not raw Cypher) over stdio. Evidence tools take a `reason` that is recorded as "model's stated reason (unverified)"; `record_investigation` **re-verifies** proposed suspects with the engine's checks before storing them, tagged `agent="mcp:<name>"`.
+- **LangGraph guest agent** (`agents/langgraph_guest/`, own requirements, never imported by the core): LangChain `create_agent` over `MCPAdapter`; the model (Groq `openai/gpt-oss-120b`, Gemini fallback) chooses the tools, capped at 12 calls; tests replay a recorded sequence through a fake model; live runs need `RUN_LIVE_LLM=1`. One live run chose 7 tools and reached the same verdict as deterministic mode ([log](docs/test-results/langgraph-guest-live.txt)).
 
 More: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · concepts used and not used (RAG, LangGraph, memory, MCP): [`docs/CONCEPTS.md`](docs/CONCEPTS.md).
 
@@ -131,15 +137,17 @@ Per candidate deployment: **temporal precedence** (hard), **dependency path** vi
 
 ## API
 
-`GET /api/health` · `GET /api/incidents` · `GET /api/graph` · `POST /api/investigations {incident_id | service, mode}` · `GET /api/investigations[/{id}]` · `POST /api/actions/{id}/approve` (simulated) · `POST /api/demo/reset[?memory_only=true]` · `GET /api/tools`
+`GET /api/health` · `GET /api/incidents` · `GET /api/graph` · `POST /api/investigations {incident_id | service, mode}` · `GET /api/investigations[/{id}]` (every agent's investigations, graph-backed) · `POST /api/actions/{id}/approve` (simulated; writes a learned Resolution) · `POST /api/demo/reset[?memory_only=true]` · `GET /api/tools`. Every endpoint accepts `?tenant=<slug>`.
 
 ## Limitations (honest list)
 
 - Demo data is synthetic and deterministic (14 services); there is no real log/deploy ingestion.
 - The remediation is **simulated**: an `Action` node is written, nothing is rolled back.
 - The investigation window is a fixed 60 minutes before `opened_at`.
-- LLM mode writes the narrative only; tool selection is fixed by the state machine.
-- Full reports (with traces) are held in process memory; the durable record is the graph.
+- In the core engine the LLM writes the narrative only; tool order is fixed by the state machine. LLM tool selection exists in the LangGraph guest over MCP, and its conclusions are only stored after server-side verification.
+- Full reports (with Cypher text) are held in process memory; the durable record in the graph keeps a compact trace per step.
+- Tenant isolation is one graph key per tenant with no authentication; it is a demonstration of FalkorDB multi-graph, not an access-control system.
+- The LangGraph guest is slow on free tiers (about two minutes for a run) and is not part of the Docker image.
 - FalkorDB does not accept a parameter as a variable-length hop bound, so the depth is validated (1..4) and inlined.
 
 ## AI-assistance disclosure
@@ -149,9 +157,10 @@ This project was built during the event with **Claude Code (Anthropic, model Cla
 ## Repository map
 
 ```
-backend/            db.py · seed.py · config.py · tools/ (catalog) · agent/ (engine, narrative, llm) · api/ · mcp_server.py
+backend/            db.py · seed.py · config.py · tools/ (catalog) · agent/ (engine, narrative, llm) · api/ · mcp_server.py · mcp_client_demo.py
+agents/langgraph_guest/   outside LangGraph agent over MCP (own requirements, fake-model tests, live recordings)
 frontend/           Vite + React + TS dashboard
-tests/              scenarios.yaml (ground truth) · test_tools.py · test_scenarios.py · test_validator.py
+tests/              scenarios.yaml (ground truth) · test_tools · test_scenarios · test_validator · test_mcp · test_handoff · test_tenant
 docs/               CONCEPTS · GRAPH_MODEL · ARCHITECTURE · QUERIES (generated) · DEMO_SCRIPT · EXPLAIN_IT · BLOG_DRAFT
 docker-compose.yml  FalkorDB (pinned digest) + app · Dockerfile (multi-stage)
 ```

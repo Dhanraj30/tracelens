@@ -17,6 +17,11 @@ Keep the cursor slow. Say the bold lines; the rest is stage direction.
 | 2:15 | FalkorDB Browser (10 s) | Tab to http://localhost:3000, run `MATCH (i:Investigation)-[:CONSIDERED]->(h:Hypothesis)-[r]->(n) RETURN i,h,r,n` | **"This is the real graph: investigations, hypotheses — including the rejected ones — and the evidence edges that support or reject them."** |
 | 2:25 | Close (5 s) | Back to dashboard | **"TraceLens: symptom to root cause, proven by traversal, remembered for next time. Built on FalkorDB."** |
 
+## Optional beats if you have 30 s to spare (Track 02 / MCP)
+
+- **Guest handoff (15 s):** before recording, run `RUN_LIVE_LLM=1 python -m agents.langgraph_guest.agent inc-1042` (or the quota-free `python -m backend.mcp_client_demo inc-1042`). Then in the dashboard open **Past investigations**: the entry reads `mcp:langgraph · server-verified`, and its trace shows the model's stated reasons in italics. Run `inc-1043`: the banner says **learned by mcp:langgraph**. Say: *"An outside LangGraph agent chose the tools over MCP; the server re-checked its answer before storing it; my engine reused it."*
+- **Learning from approval (15 s):** after approving A's rollback, pick `inc-1051 — Checkout failing again after pool change`. The similar-incidents card shows **🧠 learned by TraceLens** on inc-1042. Say: *"A week later the same signature; the fix it learned from my click is now history it can cite."*
+
 ## Handy URLs for recording
 
 - Full replay of A: `http://localhost:5173/?incident=inc-1042`

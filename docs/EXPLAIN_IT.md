@@ -72,7 +72,39 @@ Optional, OpenAI-compatible, free tier (Groq by default). It only writes the nar
 - **Deterministic seed with fixed IDs/timestamps**, idempotent via MERGE. The ground truth lives only in `tests/scenarios.yaml`.
 - **Simulated execution** of the remediation: a hackathon demo must not pretend to roll back production. The Action node is real; the rollback is not.
 
+## The Saturday-evening additions (steps 1–5) and how to explain them
+
+### Cross-agent handoff with provenance
+- Every `Investigation` carries `agent` (`engine`, `mcp:client-demo`, `mcp:langgraph`), `verified`, and a compact `trace`.
+- Memory is shared through the graph, not through messages: an MCP client writes, the dashboard engine recalls. The badge reads "learned by mcp:langgraph at <time>".
+- **Server-side verification:** when any MCP client calls `record_investigation` with suspects, the server runs `verify_candidates()`, which is the engine with `verify_only=[...]`: same temporal / path / origin / common-cause / history checks, nothing written until they are done. A suspect that fails is stored as `rejected` with the failing checks, and `recall` reads only `supported`. A guest cannot poison memory.
+- A guest's `reason` strings are stored on the trace labelled "model's stated reason (unverified)". They are explanation, never evidence.
+
+### LangGraph guest (LLM tool selection over MCP)
+- Lives in `agents/langgraph_guest/`; the core never imports LangChain. It uses `langchain.agents.create_agent` (LangGraph runtime) and `langchain.mcp.MCPAdapter`.
+- It sees 10 tools (evidence + `record_investigation`), never `investigate`, `record_action`, `list_catalog`, never Cypher.
+- Caps: 12 tool calls, 16 model calls (middleware), Groq → Gemini fallback (middleware).
+- Live run on 17 Oct: gpt-oss-120b chose get_incident → upstream_dependencies → recall → deployments_in_window → error_timeline → healthy_siblings → record_investigation; it skipped path_between and similar_incidents. The server still ran all five checks and verified `dep-pay-1352` 5/5. **The LLM chose the path; the graph decided the verdict.**
+- Tests replay that sequence through a fake chat model (no network); a second test has a naive guest blame `dep-chk-1405` and proves it is stored as rejected.
+
+### Learning from approvals (Scenario D)
+- Approving the simulated rollback does three things: `Action.status=executed`, `Hypothesis.confirmed=true`, and a new `Resolution {source:'tracelens'}` with `RESOLVED_BY` from the incident, `REVERTED` to the deployment, `FOLLOWED` to the runbook; the incident becomes `resolved`.
+- That is exactly the shape `similar_incidents` traverses, so a week later (`inc-1051`) the history check cites `inc-1042` with "learned by TraceLens", and the runbook flows into the new proposal.
+- Why not recall? `dep-pay-1352` is outside D's 60-minute window. Recall is episodic ("we saw this deploy"); the learned Resolution is semantic ("this signature on this service was fixed by rolling back a pool change"). Be ready to say that distinction out loud.
+- The history check matches a past incident to a candidate if the past incident affected the same service **or** its resolution reverted a deployment to that service; strongest file overlap wins.
+
+### Three kinds of memory
+- Episodic = Investigation/Hypothesis with time and agent. Semantic = entity graph + learned Resolutions. Procedural = Runbooks reused through Action → Resolution. Say plainly what is thin: no conversational memory, no inferred facts beyond approvals, no high-concurrency demo.
+
+### Tenants
+- `?tenant=acme-eu` → graph key `tracelens:acme-eu`, slug-validated, auto-seeded. Memory written in one key is invisible in another (test). It is FalkorDB multi-graph, not auth.
+
 ## What you must be able to explain (checklist)
+- [ ] How a guest agent's conclusion gets into memory, and why a wrong one cannot.
+- [ ] Which 7 tools the LangGraph guest chose live, which 2 it skipped, and why the verdict still matched.
+- [ ] What approving an action writes to the graph, and how Scenario D finds it a week later (history, not recall).
+- [ ] Episodic vs semantic vs procedural, mapped to node labels.
+- [ ] What `?tenant=` does and does not do.
 
 - [ ] Walk through Scenario A's 11 tool calls and say what each query returns.
 - [ ] Explain why `dep-chk-1405` is rejected (temporal) and why `dep-cart-1320` is rejected (origin).

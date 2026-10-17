@@ -15,9 +15,12 @@ docker compose up -d falkordb                      # FalkorDB on 6379, Browser o
 .venv/Scripts/python -m uvicorn backend.api.main:app --reload --port 8000
 cd frontend && npm run dev                        # Vite on 5173 (proxies /api -> 8000)
 PYTHONIOENCODING=utf-8 .venv/Scripts/python -m pytest -q   # uses graph key `tracelens_test`
-.venv/Scripts/python -m backend.mcp_client_demo inc-1042   # MCP: client picks catalog tools over stdio
+.venv/Scripts/python -m backend.mcp_client_demo inc-1042   # MCP: rule-based client picks catalog tools over stdio, writes back (server-verified)
+RUN_LIVE_LLM=1 .venv/Scripts/python -m agents.langgraph_guest.agent inc-1042   # LangGraph guest: LLM picks tools over MCP (ONE live run; costs quota)
 docker compose up --build                                  # full image: FastAPI serves built frontend on 8000
 ```
+Tenants: every API call accepts `?tenant=<slug>` (graph key `tracelens:<slug>`, auto-seeded). Dashboard: `http://localhost:5173/?tenant=acme`.
+Guest deps are separate (`agents/langgraph_guest/requirements.txt`); the core backend must never import LangChain/LangGraph. Fixtures live in the root `conftest.py`.
 Headless screenshots for QA: `chrome --headless=new --window-size=1920,1080 --virtual-time-budget=12000 --screenshot=out.png "http://127.0.0.1:5173/?incident=inc-1042&instant=1"` (`&step=N` pauses mid-replay, `&tab=hypotheses`).
 
 ## Layout

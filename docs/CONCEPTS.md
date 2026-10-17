@@ -121,9 +121,11 @@ Every fallback hop is recorded in the report and shown in the UI ("LLM provider 
 
 **What it is.** An open protocol for exposing tools, resources and prompts to AI clients (Claude Desktop, Cursor, custom agents) over stdio or HTTP.
 
-**Do we use it?** Yes. `backend/mcp_server.py` exposes the same 11 catalog tools plus `investigate` and `list_catalog`, using the official MCP Python SDK. `backend/mcp_client_demo.py` is a client that launches the server as a subprocess, lists the tools, and **selects** them step by step to solve Scenario A (10 calls), stopping after one call for an unknown incident.
+**Do we use it?** Yes. `backend/mcp_server.py` exposes the same 11 catalog tools plus `investigate` and `list_catalog`, using the official MCP Python SDK. Two clients use it: `backend/mcp_client_demo.py` (rule-based: selects tools step by step, 10 calls for Scenario A, stops after one call for an unknown incident) and the LangGraph guest (section 4: an LLM selects the tools).
 
-**Why.** Track 01 explicitly values "tool selection through MCP". Exposing the catalog, not raw Cypher, means an outside agent inherits the same validation, resolution and tracing.
+**Two guarantees the server adds for outside agents.** (1) Every evidence tool takes a `reason`; it is stored on the session trace as "model's stated reason (unverified)". (2) `record_investigation` re-runs the rule-based checks on every proposed suspect and stores it as `supported` only if they pass; the result is tagged `agent="mcp:<name>"` and becomes memory the engine can recall ("learned by mcp:langgraph").
+
+**Why.** Track 01 explicitly values "tool selection through MCP". Exposing the catalog, not raw Cypher, means an outside agent inherits the same validation, resolution and tracing, and the verification step means it can contribute to memory without being able to corrupt it.
 
 ---
 
@@ -164,7 +166,7 @@ Every fallback hop is recorded in the report and shown in the UI ("LLM provider 
 
 **What it is.** The agent proposes an action; a person approves; only then is it executed.
 
-**How.** `ACT` proposes a rollback tied to a specific `Deployment` and `Runbook`. The dashboard has an **Approve rollback (simulated)** button. Clicking it calls `record_action` twice (approved → executed), writes the `Action` node and marks the hypothesis confirmed. **Nothing real is rolled back.**
+**How.** `ACT` proposes a rollback tied to a specific `Deployment` and `Runbook`. The dashboard has an **Approve rollback (simulated)** button. Clicking it calls `record_action` twice (approved → executed), writes the `Action` node, marks the hypothesis confirmed, **and writes a `Resolution {source:'tracelens'}` on the incident** linked to the reverted deployment and the runbook. That is how TraceLens learns its own fixes: a week later (Scenario D, `inc-1051`) `similar_incidents` reaches it through the shared `ErrorSignature`. **Nothing real is rolled back.**
 
 **Why.** An incident agent that acts unilaterally is a liability; one that writes a proposal to the graph and waits for a click is a teammate. "Simulated" is stated everywhere so no one mistakes the demo for production automation.
 

@@ -4,7 +4,7 @@ Raw logs live in this folder; rendered screenshots are in `docs/screenshots/`.
 
 | What | Command | Result | Screenshot |
 |---|---|---|---|
-| Unit + scenario tests | `PYTHONIOENCODING=utf-8 python -m pytest -q` | 29 passed against a real FalkorDB container (`tracelens_test` graph) | `test-results-pytest.png` |
+| Unit + scenario tests | `PYTHONIOENCODING=utf-8 python -m pytest -q` | 37 passed against a real FalkorDB container (`tracelens_test` graph): tools, scenarios A–D, validator, MCP guards, cross-agent handoff, guest fake-model replay, tenant isolation | `test-results-pytest.png` |
 | LLM mode, Groq | `python llm_test.py groq` (model `openai/gpt-oss-120b`) | A/B/C all narrated by the LLM and accepted by the validator; validator rejects an invented ID, an unlisted service and "proven cause" | `test-results-llm-groq.png`, `llm-mode-scenario-a.png`, `llm-mode-scenario-b-memory.png`, `llm-mode-scenario-c-inconclusive.png` |
 | LLM mode, Gemini | `python llm_test.py gemini` (model `gemini-2.5-flash`) | A and C narrated by the LLM; B hit a transient 503 and fell back to the deterministic template automatically (shown in the report as "LLM unavailable → deterministic") | `test-results-llm-gemini.png` |
 | LLM provider fallback chain | `LLM_MODEL=does-not-exist python …` (primary forced to a bogus model) | Groq returns 404 → adapter moves to the fallback provider → Gemini `gemini-3.5-flash-lite` writes a validated narrative in 4.5 s; both hops recorded in `llm_fallbacks` (gemini-3.8-flash also worked, 4.2 s, but the lite model uses fewer tokens) | `llm-fallback-chain.txt` |

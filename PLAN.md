@@ -21,3 +21,5 @@ Decisions log
 - gstack skipped: Bun not installed; installing it changes global PATH (needs approval).
 - FalkorDB image pinned by digest in docker-compose.yml (falkordb/falkordb@sha256:b0bdcac2…).
 - Verified on FalkorDB v4.22.1: param hop bounds unsupported → validate int + inline; CREATE INDEX twice errors → check db.indexes() first; algo.SPpaths/pageRank/betweenness signatures confirmed; ro_query rejects writes.
+
+Saturday evening additions (18:49–19:20 IST): cross-agent handoff with server-side verification (18:54), LangGraph guest over MCP + live run + history view (19:08), learned Resolutions + Scenario D (19:12), memory vocabulary docs, tenant isolation (19:16), docs audit + clean-setup run (19:20). 37 tests green.
