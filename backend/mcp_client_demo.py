@@ -35,7 +35,13 @@ def data(result: Any) -> dict[str, Any]:
     """Unwrap a CallToolResult into the tool's dict."""
     sc = getattr(result, "structured_content", None) or getattr(result, "structuredContent", None)
     if isinstance(sc, dict):
-        return sc.get("result", sc)
+        inner = sc.get("result", sc)
+        if isinstance(inner, str):  # tools return compact JSON text; the SDK wraps it as {"result": "<json>"}
+            try:
+                return json.loads(inner)
+            except json.JSONDecodeError:
+                return {"text": inner}
+        return inner
     for c in getattr(result, "content", []) or []:
         text = getattr(c, "text", None)
         if text:

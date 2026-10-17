@@ -57,7 +57,13 @@ def session_trace() -> list[dict[str, Any]]:
     return out
 
 
-def _run(name: str, reason: str = "", **args: Any) -> dict[str, Any]:
+def compact(obj: Any) -> str:
+    """Tool results go to the model as COMPACT JSON. The MCP SDK would pretty-print a dict (indent=2), and every model
+    request re-sends the whole transcript, so whitespace costs real tokens. No fields are removed."""
+    return json.dumps(obj, separators=(",", ":"), default=str)
+
+
+def _run_dict(name: str, reason: str = "", **args: Any) -> dict[str, Any]:
     purpose = f"model's stated reason (unverified): {reason.strip()[:200]}" if reason else "mcp"
     try:
         r = ctx().call(name, purpose=purpose, **args)
@@ -67,66 +73,70 @@ def _run(name: str, reason: str = "", **args: Any) -> dict[str, Any]:
         return {"ok": False, "error": str(exc), "kind": exc.kind, "unresolved": exc.unresolved}
 
 
+def _run(name: str, reason: str = "", **args: Any) -> str:
+    return compact(_run_dict(name, reason, **args))
+
+
 REASON_DOC = " `reason`: one short sentence on why you are calling this tool (recorded, unverified)."
 
 
 @mcp.tool()
-def get_incident(incident_id: str, reason: str = "") -> dict[str, Any]:
+def get_incident(incident_id: str, reason: str = "") -> str:
     """Load an incident, the service it affects and the error events observed on it. Start here.""" + REASON_DOC
     return _run("get_incident", reason, incident_id=incident_id)
 
 
 @mcp.tool()
-def upstream_dependencies(service: str, depth: int = 4, reason: str = "") -> dict[str, Any]:
+def upstream_dependencies(service: str, depth: int = 4, reason: str = "") -> str:
     """Walk DEPENDS_ON edges from a service to everything it transitively relies on (depth 1..4). Defines the suspect space.""" + REASON_DOC
     return _run("upstream_dependencies", reason, service=service, depth=depth)
 
 
 @mcp.tool()
-def deployments_in_window(services: list[str], from_ts: int, to_ts: int, reason: str = "") -> dict[str, Any]:
+def deployments_in_window(services: list[str], from_ts: int, to_ts: int, reason: str = "") -> str:
     """Deployments (with CodeChanges) to any of the services inside [from_ts, to_ts] (epoch seconds). Each is a candidate cause.""" + REASON_DOC
     return _run("deployments_in_window", reason, services=services, from_ts=from_ts, to_ts=to_ts)
 
 
 @mcp.tool()
-def error_timeline(services: list[str], from_ts: int, to_ts: int, reason: str = "") -> dict[str, Any]:
+def error_timeline(services: list[str], from_ts: int, to_ts: int, reason: str = "") -> str:
     """First-seen time and volume per (service, error signature) inside the window. The first row is the error origin.""" + REASON_DOC
     return _run("error_timeline", reason, services=services, from_ts=from_ts, to_ts=to_ts)
 
 
 @mcp.tool()
-def healthy_siblings(service: str, from_ts: int, to_ts: int, reason: str = "") -> dict[str, Any]:
+def healthy_siblings(service: str, from_ts: int, to_ts: int, reason: str = "") -> str:
     """Common-cause test: other services sharing this service's dependencies, and whether they emitted errors in the window.""" + REASON_DOC
     return _run("healthy_siblings", reason, service=service, from_ts=from_ts, to_ts=to_ts)
 
 
 @mcp.tool()
-def similar_incidents(signature_keys: list[str], services: list[str], reason: str = "") -> dict[str, Any]:
+def similar_incidents(signature_keys: list[str], services: list[str], reason: str = "") -> str:
     """Resolved past incidents reached through shared ErrorSignature nodes, with Resolution, Runbook and reverted Deployment.""" + REASON_DOC
     return _run("similar_incidents", reason, signature_keys=signature_keys, services=services)
 
 
 @mcp.tool()
-def path_between(from_service: str, to_service: str, reason: str = "") -> dict[str, Any]:
+def path_between(from_service: str, to_service: str, reason: str = "") -> str:
     """Weighted shortest DEPENDS_ON path (algo.SPpaths) from one service to another. Empty = not connected.""" + REASON_DOC
     return _run("path_between", reason, from_service=from_service, to_service=to_service)
 
 
 @mcp.tool()
-def critical_services(limit: int = 10, reason: str = "") -> dict[str, Any]:
+def critical_services(limit: int = 10, reason: str = "") -> str:
     """Load-bearing services by PageRank and betweenness centrality.""" + REASON_DOC
     return _run("critical_services", reason, limit=limit)
 
 
 @mcp.tool()
-def recall(services: list[str], from_ts: int, to_ts: int, exclude_incident: str = "", reason: str = "") -> dict[str, Any]:
+def recall(services: list[str], from_ts: int, to_ts: int, exclude_incident: str = "", reason: str = "") -> str:
     """Memory: prior investigations (of other incidents) whose supported root cause is a deployment on these services in the window.""" + REASON_DOC
     return _run("recall", reason, services=services, from_ts=from_ts, to_ts=to_ts, exclude_incident=exclude_incident)
 
 
 @mcp.tool()
 def record_investigation(incident_id: str, outcome: str, suspects: list[str], agent: str = "unknown", summary: str = "",
-                         reason: str = "") -> dict[str, Any]:
+                         reason: str = "") -> str:
     """WRITE: persist your conclusion. `suspects` = deployment IDs you believe caused the incident (empty if inconclusive).
     The server RE-VERIFIES with its rule-based graph checks: it checks EVERY deployment on the incident's dependency path in the
     window (not only your suspects), stores the ones that fail as rejected with the failing checks, and stores a suspect as
@@ -138,7 +148,7 @@ def record_investigation(incident_id: str, outcome: str, suspects: list[str], ag
     try:
         verification = verify_candidates(g, incident_id, suspects)
     except ToolError as exc:
-        return {"ok": False, "error": str(exc), "kind": exc.kind, "unresolved": exc.unresolved}
+        return compact({"ok": False, "error": str(exc), "kind": exc.kind, "unresolved": exc.unresolved})
     hyps = verification["hypotheses"]  # EVERY deployment on the path in the window, plus any off-path suspect
     supported = [h for h in hyps if h["status"] == "supported"]
     rejected = [h for h in hyps if h["status"] == "rejected"]
@@ -156,37 +166,37 @@ def record_investigation(incident_id: str, outcome: str, suspects: list[str], ag
                         "suspect": h["suspect"], "proposed": h["proposed"], "checks": h["checks"]} for i, h in enumerate(hyps, start=1)],
         "action": verification.get("action") and dict(verification["action"], id=f"act-{inv_id[4:]}"),
     }
-    res = _run("record_investigation", reason, investigation=payload)
+    res = _run_dict("record_investigation", reason, investigation=payload)
     _session["trace_start"] = len(ctx().trace)
     if not res.get("ok", True):
-        return res
-    return {"ok": True, "investigation_id": inv_id, "agent": label, "claimed_outcome": outcome, "verified_outcome": verified_outcome,
+        return compact(res)
+    return compact({"ok": True, "investigation_id": inv_id, "agent": label, "claimed_outcome": outcome, "verified_outcome": verified_outcome,
             "hypotheses": [{"suspect": h["suspect"], "status": h["status"], "score": h["score"], "proposed": h["proposed"],
                             "failed_checks": [c["name"] for c in h["checks"] if c["passed"] is False]} for h in hyps],
-            "action": payload["action"], "tool_calls_recorded": len(trace), "candidates_checked": verification["candidates_checked"]}
+            "action": payload["action"], "tool_calls_recorded": len(trace), "candidates_checked": verification["candidates_checked"]})
 
 
 @mcp.tool()
-def record_action(action_id: str, status: str, at: int) -> dict[str, Any]:
+def record_action(action_id: str, status: str, at: int) -> str:
     """WRITE: set an Action's status (approved | executed | rejected). Execution is simulated. (Humans only — not for guest agents.)"""
     return _run("record_action", "", action_id=action_id, status=status, at=at)
 
 
 @mcp.tool()
-def investigate(incident_id: str) -> dict[str, Any]:
+def investigate(incident_id: str) -> str:
     """Run the full bounded TraceLens investigation for an incident and return the report (outcome, hypotheses, root cause, trace)."""
     from .agent.engine import Investigator
 
     rep = Investigator(get_graph()).run(incident_id=incident_id)
     rep["trace_tools"] = [c["tool"] for c in rep["trace"]]
     del rep["trace"]  # full Cypher trace is available per-tool; keep the MCP payload small
-    return rep
+    return compact(rep)
 
 
 @mcp.tool()
-def list_catalog() -> list[dict[str, Any]]:
+def list_catalog() -> str:
     """Describe the tool catalog (name, what a result proves, parameters, whether it writes)."""
-    return [{"name": s.name, "proves": s.proves, "params": s.params, "writes": s.writes} for s in REGISTRY.values()]
+    return compact([{"name": s.name, "proves": s.proves, "params": s.params, "writes": s.writes} for s in REGISTRY.values()])
 
 
 GUEST_TOOLS = ["get_incident", "upstream_dependencies", "deployments_in_window", "error_timeline", "healthy_siblings",

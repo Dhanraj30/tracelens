@@ -8,10 +8,9 @@ from mcp import Client
 
 
 def _data(result):
-    sc = getattr(result, "structured_content", None) or getattr(result, "structuredContent", None)
-    if isinstance(sc, dict):
-        return sc.get("result", sc)
-    return json.loads(result.content[0].text)
+    from backend.mcp_client_demo import data
+
+    return data(result)
 
 
 def test_mcp_lists_catalog_and_guards_unknown_names(fresh_memory, monkeypatch):

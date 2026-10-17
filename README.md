@@ -123,7 +123,7 @@ Per candidate deployment: **temporal precedence** (hard), **dependency path** vi
 
 ## Evals
 
-`python -m evals.run_evals` scores the LangGraph guest (LLM tool selection over MCP) and the deterministic engine on five cases (A red herring, B after A, B alone, C incomplete evidence, unknown id), each in a freshly seeded, isolated tenant graph; only the scorer reads the ground truth. Offline mode replays recorded tool-call sequences (no network, runs in pytest); live mode needs `RUN_LIVE_LLM=1` and is budget-capped. Results: [`docs/EVALS.md`](docs/EVALS.md).
+`python -m evals.run_evals` scores the LangGraph guest (LLM tool selection over MCP) and the deterministic engine on five cases (A red herring, B after A, B alone, C incomplete evidence, unknown id), each in a freshly seeded, isolated tenant graph; only the scorer reads the ground truth. **Live results (17 Oct 2026, Groq `openai/gpt-oss-120b`, one run): LLM agent 3/5 verified correct, deterministic engine 5/5** — the two guest failures were a tokens-per-minute 429 and a mid-run Gemini fallback that Gemini rejects, both since fixed (restart-from-scratch fallback, native Gemini); full tables, disclosure of a scorer change, and failures in [`docs/EVALS.md`](docs/EVALS.md). The offline replay mode (`docs/EVALS-offline.md`, runs in pytest) tests the plumbing — MCP server, validation, server verifier — not the LLM.
 
 ## Memory (Track 02), in the judges' vocabulary
 

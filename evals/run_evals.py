@@ -354,7 +354,7 @@ def write_markdown(path: Path, meta: dict[str, Any], results: list[dict[str, Any
     L.append("\n## How to read this\n")
     L.append("- *Verified correct* for the guest means the SERVER's re-verification of what the guest proposed matches the ground truth (and for Scenario A, the checkout 14:05 deploy is not among the supported suspects). The guest never sees the ground truth; only the scorer does.")
     L.append("- *Ruled-out correct* counts only if the server STORED the deployment as a rejected hypothesis with failed checks. How: `proposed_and_rejected` (the guest blamed it, the verifier rejected it) or `rejected_by_server_check` (the guest never named it; the server checked the whole dependency path anyway).")
-    L.append("- *What to expect when recording:* a live guest run takes about 2 minutes on the Groq free tier (8 or so model calls with reasoning, plus 2.5 s spacing in evals); the deterministic engine answers in well under a second.")
+    L.append(f"- *What to expect when recording:* a live guest run takes about 2 minutes on the Groq free tier (8 or so model calls with reasoning; evals space requests {meta.get('min_interval_s', 12)} s apart, and ~30 s is advisable under the 8k tokens-per-minute limit); the deterministic engine answers in well under a second.")
     L.append("- *Fallbacks* count provider restarts (`restarted on <provider> after <error>`) observed in live mode; the deterministic template fallback applies to narratives only, which the guest does not write.")
     L.append("- Offline mode replays recorded tool-call sequences through a fake chat model; Scenario A replays the real live run. It exercises the MCP server, the catalog validation and the server-side verifier, not the LLM.")
     path.write_text("\n".join(L) + "\n", encoding="utf-8")
@@ -387,7 +387,7 @@ def run(live: bool = False, runs: int = 1, max_requests: int = 100, min_interval
     summary = summarize(all_results)
     meta = {"date": started.strftime("%Y-%m-%d %H:%M UTC"), "commit": _git_commit(), "mode": "live" if live else "offline", "runs": runs,
             "primary_model": primary_name, "fallback_model": fallback_name, "llm_requests_used": meter.total, "max_requests": max_requests,
-            "models_seen": sorted(set(meter.models_seen))}
+            "min_interval_s": min_interval_s, "models_seen": sorted(set(meter.models_seen))}
     results_dir.mkdir(parents=True, exist_ok=True)
     raw = results_dir / f"{started.strftime('%Y%m%dT%H%M%SZ')}-{'live' if live else 'offline'}.json"
     raw.write_text(json.dumps({"meta": meta, "summary": summary, "results": all_results}, indent=2, default=str), encoding="utf-8")

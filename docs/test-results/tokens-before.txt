@@ -1,0 +1,3 @@
+  from langchain.mcp import MCPAdapter
+requests=8  chars/request=[1830, 3679, 8108, 9629, 12248, 13804, 16328, 18860]  approx_tokens/request(chars/4)=[457, 919, 2027, 2407, 3062, 3451, 4082, 4715]
+total approx tokens sent=21120  max per request=4715  mean=2640

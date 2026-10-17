@@ -98,7 +98,14 @@ def _structured(msg: Any) -> dict[str, Any] | None:
     else:
         sc = getattr(art, "structured_content", None)
     if isinstance(sc, dict):
-        return sc.get("result", sc)
+        inner = sc.get("result", sc)
+        if isinstance(inner, dict):
+            return inner
+        if isinstance(inner, str):
+            try:
+                return json.loads(inner)
+            except json.JSONDecodeError:
+                return None
     try:
         return json.loads(msg.content if isinstance(msg.content, str) else msg.content[0]["text"])
     except Exception:  # noqa: BLE001
