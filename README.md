@@ -118,7 +118,7 @@ Per candidate deployment: **temporal precedence** (hard), **dependency path** vi
 ## Deterministic vs LLM mode
 
 - **Deterministic (default, what the demo and tests use):** no key needed. Narrative is a template built from the returned rows.
-- **LLM (optional toggle):** any OpenAI-compatible endpoint, free tier only (Groq `openai/gpt-oss-120b` by default, with Gemini `gemini-3.8-flash` as an automatic fallback provider; Ollama works too, see `.env.example`). The LLM only writes the narrative. Order on failure: primary provider → fallback provider → deterministic template, every hop shown in the UI. A validator rejects any narrative naming an entity not in the evidence, saying "proven", or claiming impact when traversals were empty; on rejection, timeout, 429 or missing key it falls back to the template and the UI shows "LLM unavailable → deterministic". The LLM never writes Cypher.
+- **LLM (optional toggle):** any OpenAI-compatible endpoint, free tier only (Groq `openai/gpt-oss-120b` by default, with Gemini `gemini-3.5-flash-lite` as an automatic fallback provider; Ollama works too, see `.env.example`). The LLM only writes the narrative. Order on failure: primary provider → fallback provider → deterministic template, every hop shown in the UI. A validator rejects any narrative naming an entity not in the evidence, saying "proven", or claiming impact when traversals were empty; on rejection, timeout, 429 or missing key it falls back to the template and the UI shows "LLM unavailable → deterministic". The LLM never writes Cypher.
 
 ## API
 
