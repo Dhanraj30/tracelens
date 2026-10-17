@@ -19,6 +19,7 @@ Provenance + verification:
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any
 
@@ -144,6 +145,8 @@ def record_investigation(incident_id: str, outcome: str, suspects: list[str], ag
     from .agent.engine import verify_candidates
 
     label = agent if agent.startswith("mcp:") else f"mcp:{agent}"
+    if os.environ.get("TRACELENS_REPLAY") == "1" and not label.endswith("-replay"):
+        label += "-replay"  # set by the eval/e2e harness: the "model" is a replayed recording, not a live LLM
     g = get_graph()
     try:
         verification = verify_candidates(g, incident_id, suspects)
@@ -197,6 +200,19 @@ def investigate(incident_id: str) -> str:
 def list_catalog() -> str:
     """Describe the tool catalog (name, what a result proves, parameters, whether it writes)."""
     return compact([{"name": s.name, "proves": s.proves, "params": s.params, "writes": s.writes} for s in REGISTRY.values()])
+
+
+@mcp.tool()
+def session_note(note: str) -> str:
+    """Append a free-text note to the current session trace (used by guest HARNESS code, e.g. 'restarted on gemini after ...').
+    Not offered to models. Stored on the next record_investigation so the dashboard history shows it."""
+    from .tools.base import ToolCall
+
+    note = str(note)[:300]
+    c = ctx()
+    c.trace.append(ToolCall(step=len(c.trace) + 1, tool="session_note", args={}, queries=[], duration_ms=0.0, row_count=0, status="ok",
+                            summary=note, purpose=note))
+    return compact({"ok": True, "step": len(c.trace)})
 
 
 GUEST_TOOLS = ["get_incident", "upstream_dependencies", "deployments_in_window", "error_timeline", "healthy_siblings",

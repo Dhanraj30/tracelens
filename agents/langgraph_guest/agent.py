@@ -33,7 +33,7 @@ from typing import Any
 from dotenv import dotenv_values
 
 GUEST_NAME = "langgraph"
-EXCLUDED_TOOLS = {"investigate", "record_action", "list_catalog"}
+EXCLUDED_TOOLS = {"investigate", "record_action", "list_catalog", "session_note"}  # session_note is harness-only, never the model's
 MAX_TOOL_CALLS = 12
 MAX_MODEL_CALLS = 16
 RECORDINGS = Path(__file__).resolve().parent / "recordings"
@@ -140,6 +140,7 @@ async def run_guest(incident_id: str, *, server: Any = None, model: Any = None, 
     async with MCPAdapter(target) as adapter:  # keep the session open for the whole run: the server traces it as one session
         all_tools = await adapter.list_tools()
         tools = [t for t in all_tools if t.name not in EXCLUDED_TOOLS]
+        note_tool = next((t for t in all_tools if t.name == "session_note"), None)
         log(f"[guest] MCP tools offered to the model: {', '.join(t.name for t in tools)}  (excluded: {', '.join(sorted(EXCLUDED_TOOLS))})")
         if model is None:
             model, fallbacks = build_models()
@@ -172,6 +173,11 @@ async def run_guest(incident_id: str, *, server: Any = None, model: Any = None, 
                 restarts.append({"note": note, "failed_provider": str(cur_label), "next_provider": str(nxt_label), "calls_before_restart": counter.tool_calls, "error": str(exc)[:400]})
                 trace_notes.append({"tool": "restart", "note": note})
                 log(f"[guest] {note} (the failed attempt had completed {counter.tool_calls} tool call(s); starting over from scratch)")
+                if note_tool is not None:  # harness-side note into the server session trace, so the dashboard history shows the restart
+                    try:
+                        await note_tool.ainvoke({"note": note})
+                    except Exception as note_exc:  # noqa: BLE001
+                        log(f"[guest] could not record session note: {note_exc}")
         if result is None:  # pragma: no cover - defensive; the loop either breaks or raises
             raise last_exc or RuntimeError("no provider produced a result")
 

@@ -51,6 +51,9 @@ def test_fallback_restarts_from_scratch_on_next_provider(fresh_memory, monkeypat
     assert out["model_used"] == "replay-fake"
     # the restart note also travels into the guest's trace list so evals/recordings can show it
     assert any(c.get("tool") == "restart" for c in out["trace_notes"])
+    # ... and into the server session trace stored on the Investigation node (dashboard history shows it)
+    rows, _ = fresh_memory.read("MATCH (inv:Investigation {id: $id}) RETURN inv.trace", {"id": out["recorded"]["investigation_id"]})
+    assert "session_note" in rows[0][0] and "restarted on" in rows[0][0]
 
 
 def test_all_providers_fail_raises_last_error(fresh_memory, monkeypatch):

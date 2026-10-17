@@ -160,13 +160,16 @@ async def run_guest_case(case: dict[str, Any], graph: Graph, live: bool, meter: 
     meter.per_run = 0
     t0 = time.time()
     source = "live"
+    prev_replay = os.environ.get("TRACELENS_REPLAY")
     try:
         if live:
+            os.environ.pop("TRACELENS_REPLAY", None)
             out = await run_guest(case["incident"], server=srv.mcp, log=lambda s: None, callbacks=[meter.handler])
         else:
             from agents.langgraph_guest.fake_model import ReplayToolCallingModel
             from evals.replays import script_for
 
+            os.environ["TRACELENS_REPLAY"] = "1"  # provenance becomes mcp:<agent>-replay so nobody mistakes it for a live LLM run
             script, source = script_for(case["case"])
             out = await run_guest(case["incident"], server=srv.mcp, model=ReplayToolCallingModel(script=script), fallbacks=[], log=lambda s: None, callbacks=[meter.handler])
         error = None
@@ -174,6 +177,11 @@ async def run_guest_case(case: dict[str, Any], graph: Graph, live: bool, meter: 
         out, error = {"tool_calls": [], "recorded": None, "final": "", "model_used": "n/a"}, f"budget: {exc}"
     except Exception as exc:  # noqa: BLE001
         out, error = {"tool_calls": [], "recorded": None, "final": "", "model_used": "n/a"}, f"{type(exc).__name__}: {str(exc)[:600]}"
+    finally:  # never leak the replay flag into the rest of the process (pytest runs other suites afterwards)
+        if prev_replay is None:
+            os.environ.pop("TRACELENS_REPLAY", None)
+        else:
+            os.environ["TRACELENS_REPLAY"] = prev_replay
     latency = round(time.time() - t0, 1)
     calls = out.get("tool_calls", [])
     rejected_by_validation = sum(1 for c in calls if isinstance(c.get("result"), str) and (c["result"].startswith("unknown ") or c["result"].startswith("invalid ") or "must be" in c["result"]))
