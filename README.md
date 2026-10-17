@@ -107,7 +107,7 @@ React + React Flow  ──/api──►  FastAPI  ──►  Investigator (bound
 - **Frontend:** Vite + React + TypeScript + Tailwind, React Flow + dagre; the traversal animates step by step; "Show Cypher" on every step.
 - **MCP server** (`backend/mcp_server.py`): exposes the same catalog (not raw Cypher) over stdio; `python -m backend.mcp_client_demo` drives Scenario A through it.
 
-More: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+More: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · concepts used and not used (RAG, LangGraph, memory, MCP): [`docs/CONCEPTS.md`](docs/CONCEPTS.md).
 
 ## Agent workflow and scoring
 
@@ -143,6 +143,6 @@ This project was built during the event with **Claude Code (Anthropic, model Cla
 backend/            db.py · seed.py · config.py · tools/ (catalog) · agent/ (engine, narrative, llm) · api/ · mcp_server.py
 frontend/           Vite + React + TS dashboard
 tests/              scenarios.yaml (ground truth) · test_tools.py · test_scenarios.py · test_validator.py
-docs/               GRAPH_MODEL · ARCHITECTURE · QUERIES (generated) · DEMO_SCRIPT · EXPLAIN_IT · BLOG_DRAFT
+docs/               CONCEPTS · GRAPH_MODEL · ARCHITECTURE · QUERIES (generated) · DEMO_SCRIPT · EXPLAIN_IT · BLOG_DRAFT
 docker-compose.yml  FalkorDB (pinned digest) + app · Dockerfile (multi-stage)
 ```

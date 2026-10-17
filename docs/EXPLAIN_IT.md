@@ -1,6 +1,6 @@
 # EXPLAIN IT — notes for talking to judges
 
-Plain-language answers to "why did you do it this way?". Every query named here is in `docs/QUERIES.md`
+Plain-language answers to "why did you do it this way?". For the concepts themselves (agent, RAG, LangGraph, memory, MCP) see `docs/CONCEPTS.md`. Every query named here is in `docs/QUERIES.md`
 (generated from `backend/tools/catalog.py`).
 
 ## The one-sentence pitch
