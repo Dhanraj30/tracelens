@@ -5,11 +5,11 @@ Tracks: 01 Agents That Act on Connected Data (primary); 02 Agent Memory and Coor
 
 | When (IST) | Milestone | Done means |
 |---|---|---|
-| Sat 17:00 | Env + FalkorDB up + PLAN | FalkorDB answers a query ✅ (16:20) |
-| Sat 21:00 | P0 schema, seed, tool catalog | every tool runs on real FalkorDB; pytest green |
-| Sun 01:00 | P1 investigation engine + API | Scenarios A/B/C hit ground truth via API |
-| Sun 13:00 | P2 dashboard on real API | Scenario A full flow in browser |
-| Sun 16:00 | P3 memory polish, MCP, deploy (needs approval) | clean-setup run passes |
+| Sat 17:00 | Env + FalkorDB up + PLAN | FalkorDB answers a query ✅ (Sat 16:20) |
+| Sat 21:00 | P0 schema, seed, tool catalog | every tool runs on real FalkorDB; pytest green ✅ (Sat 16:35) |
+| Sun 01:00 | P1 investigation engine + API | Scenarios A/B/C hit ground truth via API ✅ (Sat 16:40) |
+| Sun 13:00 | P2 dashboard on real API | Scenario A full flow in browser ✅ (Sat 16:50, verified by 1080p headless screenshots) |
+| Sun 16:00 | P3 memory polish, MCP, deploy (needs approval) | MCP ✅ · Docker image + auto-seed ✅ (Sat 16:58) · live deploy ☐ awaiting approval |
 | Sun 16:00 | Feature freeze | fixes only |
 | Sun 19:00 | review, QA, docs, demo script, video | |
 | Sun 21:00 | submission ready | |

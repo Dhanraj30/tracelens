@@ -15,7 +15,10 @@ docker compose up -d falkordb                      # FalkorDB on 6379, Browser o
 .venv/Scripts/python -m uvicorn backend.api.main:app --reload --port 8000
 cd frontend && npm run dev                        # Vite on 5173 (proxies /api -> 8000)
 PYTHONIOENCODING=utf-8 .venv/Scripts/python -m pytest -q   # uses graph key `tracelens_test`
+.venv/Scripts/python -m backend.mcp_client_demo inc-1042   # MCP: client picks catalog tools over stdio
+docker compose up --build                                  # full image: FastAPI serves built frontend on 8000
 ```
+Headless screenshots for QA: `chrome --headless=new --window-size=1920,1080 --virtual-time-budget=12000 --screenshot=out.png "http://127.0.0.1:5173/?incident=inc-1042&instant=1"` (`&step=N` pauses mid-replay, `&tab=hypotheses`).
 
 ## Layout
 - `backend/db.py` traced FalkorDB access (`read` = RO_QUERY, `write`), `QueryRecord` is what the UI shows under "Show Cypher".
