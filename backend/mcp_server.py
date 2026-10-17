@@ -128,8 +128,9 @@ def recall(services: list[str], from_ts: int, to_ts: int, exclude_incident: str 
 def record_investigation(incident_id: str, outcome: str, suspects: list[str], agent: str = "unknown", summary: str = "",
                          reason: str = "") -> dict[str, Any]:
     """WRITE: persist your conclusion. `suspects` = deployment IDs you believe caused the incident (empty if inconclusive).
-    The server RE-VERIFIES every suspect with its rule-based graph checks before storing it as supported; anything that fails
-    is stored as rejected with the failing checks. Provenance is recorded as "mcp:<agent>". Returns the verified result.""" + REASON_DOC
+    The server RE-VERIFIES with its rule-based graph checks: it checks EVERY deployment on the incident's dependency path in the
+    window (not only your suspects), stores the ones that fail as rejected with the failing checks, and stores a suspect as
+    supported only if it passes. Provenance is recorded as "mcp:<agent>". Returns the verified result.""" + REASON_DOC
     from .agent.engine import verify_candidates
 
     label = agent if agent.startswith("mcp:") else f"mcp:{agent}"
@@ -138,19 +139,21 @@ def record_investigation(incident_id: str, outcome: str, suspects: list[str], ag
         verification = verify_candidates(g, incident_id, suspects)
     except ToolError as exc:
         return {"ok": False, "error": str(exc), "kind": exc.kind, "unresolved": exc.unresolved}
-    hyps = verification["hypotheses"]
+    hyps = verification["hypotheses"]  # EVERY deployment on the path in the window, plus any off-path suspect
     supported = [h for h in hyps if h["status"] == "supported"]
-    verified_outcome = "root_cause_supported" if len(supported) == 1 else "multiple_candidates" if supported else "inconclusive"
+    rejected = [h for h in hyps if h["status"] == "rejected"]
+    verified_outcome = verification["outcome"]  # judged on the suspects the guest actually proposed
     inv_id = f"inv-{int(time.time() * 1000)}"
     trace = session_trace()
     payload = {
         "id": inv_id, "incident_id": incident_id, "at": int(time.time()), "mode": "agent", "outcome": verified_outcome,
         "tool_calls": len(trace), "confidence": verification["confidence"], "agent": label, "verified": True,
         "trace": trace + [{"step": len(trace) + 1, "tool": "server_verification", "args": {"suspects": suspects}, "rows": len(hyps), "ms": verification["duration_ms"],
-                           "summary": f"server re-ran {verification['checks_run']} checks: {len(supported)} supported, {len(hyps) - len(supported)} rejected",
-                           "purpose": f"guest claimed outcome={outcome}; summary: {summary[:200]}"}],
+                           "summary": f"server checked all {verification['candidates_checked']} deployment(s) on the path ({verification['checks_run']} checks): "
+                                      f"{len(supported)} supported, {len(rejected)} ruled out; guest's claim -> {verified_outcome}",
+                           "purpose": f"guest claimed outcome={outcome}, suspects={suspects}; summary: {summary[:200]}"}],
         "hypotheses": [{"id": f"{inv_id}-h{i}", "status": h["status"], "score": h["score"], "kind": "deployment", "label": h["label"],
-                        "suspect": h["suspect"], "checks": h["checks"]} for i, h in enumerate(hyps, start=1)],
+                        "suspect": h["suspect"], "proposed": h["proposed"], "checks": h["checks"]} for i, h in enumerate(hyps, start=1)],
         "action": verification.get("action") and dict(verification["action"], id=f"act-{inv_id[4:]}"),
     }
     res = _run("record_investigation", reason, investigation=payload)
@@ -158,9 +161,9 @@ def record_investigation(incident_id: str, outcome: str, suspects: list[str], ag
     if not res.get("ok", True):
         return res
     return {"ok": True, "investigation_id": inv_id, "agent": label, "claimed_outcome": outcome, "verified_outcome": verified_outcome,
-            "hypotheses": [{"suspect": h["suspect"], "status": h["status"], "score": h["score"],
+            "hypotheses": [{"suspect": h["suspect"], "status": h["status"], "score": h["score"], "proposed": h["proposed"],
                             "failed_checks": [c["name"] for c in h["checks"] if c["passed"] is False]} for h in hyps],
-            "action": payload["action"], "tool_calls_recorded": len(trace)}
+            "action": payload["action"], "tool_calls_recorded": len(trace), "candidates_checked": verification["candidates_checked"]}
 
 
 @mcp.tool()

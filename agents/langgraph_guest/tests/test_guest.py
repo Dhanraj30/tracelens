@@ -60,7 +60,9 @@ def test_guest_replay_reaches_verified_root_cause_and_hands_off(fresh_memory, mo
     assert not any(c["tool"] in EXCLUDED_TOOLS for c in out["tool_calls"])
     rec = out["recorded"]
     assert rec["ok"] and rec["agent"] == "mcp:langgraph" and rec["verified_outcome"] == "root_cause_supported"
-    assert {h["suspect"]: h["status"] for h in rec["hypotheses"]} == {scenarios["A"]["root_cause_deployment"]: "supported"}
+    statuses = {h["suspect"]: h["status"] for h in rec["hypotheses"]}
+    assert statuses[scenarios["A"]["root_cause_deployment"]] == "supported"
+    assert all(statuses[d] == "rejected" for d in scenarios["A"]["rejected_deployments"])  # whole path verified, not just the claim
     assert rec["tool_calls_recorded"] == 8  # the server captured the guest's 8 evidence calls (+ its own verification step)
     # the guest's trace, with unverified reasons, is on the Investigation node
     rows, _ = fresh_memory.read("MATCH (inv:Investigation {id: $id}) RETURN inv.agent, inv.trace", {"id": rec["investigation_id"]})
@@ -75,8 +77,8 @@ def test_guest_wrong_suspect_is_stored_as_rejected(fresh_memory, monkeypatch, sc
     out = asyncio.run(run_guest("inc-1042", server=srv.mcp, model=ReplayToolCallingModel(script=SCRIPT_NAIVE), fallbacks=[], log=lambda s: None))
     rec = out["recorded"]
     assert rec["ok"] and rec["claimed_outcome"] == "root_cause_supported" and rec["verified_outcome"] == "inconclusive"
-    h = rec["hypotheses"][0]
-    assert h["suspect"] == "dep-chk-1405" and h["status"] == "rejected" and "temporal_precedence" in h["failed_checks"]
+    h = next(x for x in rec["hypotheses"] if x["suspect"] == "dep-chk-1405")
+    assert h["status"] == "rejected" and h["proposed"] and "temporal_precedence" in h["failed_checks"]
     rows, _ = fresh_memory.read("MATCH (inv:Investigation {id: $id})-[:CONSIDERED]->(h)-[r:REJECTED_BY]->(n) RETURN h.status, r.check, coalesce(n.id, n.name) ORDER BY r.check, n.id",
                                 {"id": rec["investigation_id"]})
     assert rows and all(r[0] == "rejected" for r in rows) and any(r[1] == "temporal_precedence" for r in rows)

@@ -330,7 +330,7 @@ def critical_services(ctx: ToolContext, limit: int = 10) -> ToolResult:
 # =======================================================================================
 Q_RECALL = """
 MATCH (inv:Investigation)-[:CONSIDERED]->(h:Hypothesis {status: 'supported'})-[:SUSPECTS]->(d:Deployment)-[:DEPLOYED_TO]->(s:Service)
-WHERE s.name IN $services AND d.at >= $from AND d.at <= $to
+WHERE s.name IN $services AND d.at >= $from AND d.at <= $to AND coalesce(h.proposed, true) = true
 MATCH (inv)-[:INVESTIGATED]->(inc:Incident)
 WHERE inc.id <> $exclude_incident
 OPTIONAL MATCH (inv)-[:PROPOSED]->(a:Action)
@@ -345,7 +345,7 @@ ORDER BY inv.at DESC
 @tool(
     "recall",
     "Prior investigations of OTHER incidents whose supported root-cause hypothesis points at a deployment on one of these services inside the window.",
-    "Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived. Knowledge transfers across incidents; re-investigating the same incident always re-derives.",
+    "Memory: a root cause an agent actually PROPOSED and the server verified (a human may also have confirmed it) on the same dependency path can be reused instead of re-derived. Candidates the server checked on an agent's behalf but the agent never claimed are not reused. Knowledge transfers across incidents; re-investigating the same incident always re-derives.",
     [Q_RECALL],
     {"services": "string[]", "from_ts": "epoch seconds", "to_ts": "epoch seconds", "exclude_incident": "string (the incident being investigated)"},
 )
@@ -379,7 +379,7 @@ Q_RECORD_HYPOTHESES = """
 MATCH (inv:Investigation {id: $id})
 UNWIND $hyps AS h
 MERGE (hy:Hypothesis {id: h.id})
-SET hy.status = h.status, hy.score = h.score, hy.kind = h.kind, hy.label = h.label, hy.confirmed = false
+SET hy.status = h.status, hy.score = h.score, hy.kind = h.kind, hy.label = h.label, hy.confirmed = false, hy.proposed = h.proposed
 MERGE (inv)-[:CONSIDERED]->(hy)
 """
 Q_RECORD_SUSPECTS = """
@@ -462,7 +462,7 @@ def record_investigation(ctx: ToolContext, investigation: dict[str, Any]) -> Too
                                      "confidence": float(inv.get("confidence") or 0.0), "agent": agent, "trace": trace_json,
                                      "verified": bool(inv.get("verified", agent == "engine"))})
     hyps = [{"id": validate_id(h["id"], "hypothesis id"), "status": h["status"], "score": float(h.get("score") or 0.0),
-             "kind": h["kind"], "label": h["label"]} for h in inv.get("hypotheses", [])]
+             "kind": h["kind"], "label": h["label"], "proposed": bool(h.get("proposed", True))} for h in inv.get("hypotheses", [])]
     if hyps:
         g.write(Q_RECORD_HYPOTHESES, {"id": inv_id, "hyps": hyps})
         suspects = [{"hypothesis_id": h["id"], "target": validate_id(h["suspect"], "suspect")} for h in inv["hypotheses"] if h.get("suspect")]

@@ -32,7 +32,7 @@ MATCH (i:Incident {id: $id}) RETURN count(i)
 | 6 | `similar_incidents` | no | History check by graph structure, not text similarity: a past incident with the same signature on the same service, resolved by a rollback, is strong evidence for the same fix. |
 | 7 | `path_between` | no | Path check: a candidate can only cause the symptom if the symptom service reaches it through dependencies. Empty result = not connected. |
 | 8 | `critical_services` | no | Weights candidates: a change on a high-centrality service has a wider blast radius, so it is examined first and its score is annotated. |
-| 9 | `recall` | no | Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived. Knowledge transfers across incidents; re-investigating the same incident always re-derives. |
+| 9 | `recall` | no | Memory: a root cause an agent actually PROPOSED and the server verified (a human may also have confirmed it) on the same dependency path can be reused instead of re-derived. Candidates the server checked on an agent's behalf but the agent never claimed are not reused. Knowledge transfers across incidents; re-investigating the same incident always re-derives. |
 | 10 | `record_investigation` | yes | This is the memory. The next investigation's `recall` reads exactly these nodes — no seed data involved. |
 | 11 | `record_action` | yes | Closes the loop: a human-approved action is recorded on the graph and becomes stronger memory. The Resolution it writes is reachable by `similar_incidents` through the shared ErrorSignature, so TraceLens learns its own fixes. |
 
@@ -184,13 +184,13 @@ RETURN node.name AS service, score ORDER BY score DESC
 
 Prior investigations of OTHER incidents whose supported root-cause hypothesis points at a deployment on one of these services inside the window.
 
-**Proves:** Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived. Knowledge transfers across incidents; re-investigating the same incident always re-derives.
+**Proves:** Memory: a root cause an agent actually PROPOSED and the server verified (a human may also have confirmed it) on the same dependency path can be reused instead of re-derived. Candidates the server checked on an agent's behalf but the agent never claimed are not reused. Knowledge transfers across incidents; re-investigating the same incident always re-derives.
 
 **Arguments:** `services` (string[]), `from_ts` (epoch seconds), `to_ts` (epoch seconds), `exclude_incident` (string (the incident being investigated))
 
 ```cypher
 MATCH (inv:Investigation)-[:CONSIDERED]->(h:Hypothesis {status: 'supported'})-[:SUSPECTS]->(d:Deployment)-[:DEPLOYED_TO]->(s:Service)
-WHERE s.name IN $services AND d.at >= $from AND d.at <= $to
+WHERE s.name IN $services AND d.at >= $from AND d.at <= $to AND coalesce(h.proposed, true) = true
 MATCH (inv)-[:INVESTIGATED]->(inc:Incident)
 WHERE inc.id <> $exclude_incident
 OPTIONAL MATCH (inv)-[:PROPOSED]->(a:Action)
@@ -221,7 +221,7 @@ MERGE (inv)-[:INVESTIGATED]->(inc)
 MATCH (inv:Investigation {id: $id})
 UNWIND $hyps AS h
 MERGE (hy:Hypothesis {id: h.id})
-SET hy.status = h.status, hy.score = h.score, hy.kind = h.kind, hy.label = h.label, hy.confirmed = false
+SET hy.status = h.status, hy.score = h.score, hy.kind = h.kind, hy.label = h.label, hy.confirmed = false, hy.proposed = h.proposed
 MERGE (inv)-[:CONSIDERED]->(hy)
 ```
 

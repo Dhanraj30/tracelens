@@ -67,7 +67,8 @@ def score_guest(case: str, out: dict[str, Any]) -> dict[str, Any]:
     rec = out.get("recorded") or {}
     calls = out.get("tool_calls", [])
     memory_used = any(c["tool"] == "recall" and isinstance(c.get("result"), str) and not c["result"].startswith("0 prior") for c in calls)
-    supported = [h["suspect"] for h in rec.get("hypotheses", []) if h.get("status") == "supported"]
+    # the guest is credited only for suspects it PROPOSED and the server verified; rejections cover the whole path
+    supported = [h["suspect"] for h in rec.get("hypotheses", []) if h.get("status") == "supported" and h.get("proposed", True)]
     rejected = [h["suspect"] for h in rec.get("hypotheses", []) if h.get("status") == "rejected"]
     verified_outcome = rec.get("verified_outcome")
     final = (out.get("final") or "").lower()
@@ -84,8 +85,11 @@ def score_guest(case: str, out: dict[str, Any]) -> dict[str, Any]:
     else:
         verified_correct = bool(rec) and verified_outcome == "root_cause_supported" and supported == [exp["root"]]
         outcome_match = rec.get("claimed_outcome") in ("root_cause_supported", "supported")
-    ruled_out_ok = all(d not in supported for d in exp["must_rule_out"])
-    ruled_out_how = {d: ("proposed_and_rejected" if d in rejected else "never_proposed" if d not in supported else "WRONGLY_SUPPORTED") for d in exp["must_rule_out"]}
+    # "ruled out" counts ONLY if the server stored the deployment as rejected (with failed checks), whether or not the guest named it
+    ruled_out_ok = all(d in rejected for d in exp["must_rule_out"])
+    proposed_ids = {h["suspect"] for h in rec.get("hypotheses", []) if h.get("proposed", True)}
+    ruled_out_how = {d: ("WRONGLY_SUPPORTED" if d in supported else "proposed_and_rejected" if d in rejected and d in proposed_ids
+                         else "rejected_by_server_check" if d in rejected else "NOT_STORED") for d in exp["must_rule_out"]}
     reasons = []
     if not verified_correct:
         reasons.append(f"expected {exp['outcome']} with root {exp['root']}; got verified_outcome={verified_outcome}, supported={supported}, recorded={'yes' if rec else 'no'}, tool_calls={len(calls)}")
@@ -288,7 +292,8 @@ def write_markdown(path: Path, meta: dict[str, Any], results: list[dict[str, Any
         L.append(f"- **{r['mode']} / {r['case']} / run {r['run_id']}** — " + "; ".join(r["failure_reasons"]) + (f" (model {r['model_used']})" if r["mode"] == "agent" else ""))
     L.append("\n## How to read this\n")
     L.append("- *Verified correct* for the guest means the SERVER's re-verification of what the guest proposed matches the ground truth (and for Scenario A, the checkout 14:05 deploy is not among the supported suspects). The guest never sees the ground truth; only the scorer does.")
-    L.append("- *Ruled-out correct* records how: `proposed_and_rejected` (the guest blamed it and the verifier rejected it) or `never_proposed` (the guest did not blame it).")
+    L.append("- *Ruled-out correct* counts only if the server STORED the deployment as a rejected hypothesis with failed checks. How: `proposed_and_rejected` (the guest blamed it, the verifier rejected it) or `rejected_by_server_check` (the guest never named it; the server checked the whole dependency path anyway).")
+    L.append("- *What to expect when recording:* a live guest run takes about 2 minutes on the Groq free tier (8 or so model calls with reasoning, plus 2.5 s spacing in evals); the deterministic engine answers in well under a second.")
     L.append("- *Fallbacks* count model switches (Groq → Gemini) observed in live mode; the deterministic template fallback applies to narratives only, which the guest does not write.")
     L.append("- Offline mode replays recorded tool-call sequences through a fake chat model; Scenario A replays the real live run. It exercises the MCP server, the catalog validation and the server-side verifier, not the LLM.")
     path.write_text("\n".join(L) + "\n", encoding="utf-8")

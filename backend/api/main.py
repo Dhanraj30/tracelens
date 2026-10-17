@@ -147,14 +147,15 @@ def get_investigation(investigation_id: str, g: Graph = Depends(tenant_graph)) -
         "MATCH (inv:Investigation {id: $id})-[:CONSIDERED]->(h:Hypothesis) OPTIONAL MATCH (h)-[e:SUPPORTED_BY|REJECTED_BY]->(n) "
         "OPTIONAL MATCH (h)-[:SUSPECTS]->(sus) "
         "RETURN h.id, h.status, h.score, h.kind, h.label, h.confirmed, collect(DISTINCT coalesce(sus.id, sus.name)), "
-        "collect({type: type(e), check: e.check, target: coalesce(n.id, n.name)}) ORDER BY h.status, h.id",
+        "collect({type: type(e), check: e.check, target: coalesce(n.id, n.name)}), coalesce(h.proposed, true) ORDER BY h.status, h.id",
         {"id": investigation_id},
     )
     hypotheses = []
     for h in hrows:
         edges = [e for e in h[7] if e.get("type")]
         hypotheses.append({"id": h[0], "status": h[1], "score": h[2], "kind": h[3], "label": h[4], "confirmed": h[5], "suspects": [s for s in h[6] if s],
-                           "supported_by": [e for e in edges if e["type"] == "SUPPORTED_BY"], "rejected_by": [e for e in edges if e["type"] == "REJECTED_BY"]})
+                           "supported_by": [e for e in edges if e["type"] == "SUPPORTED_BY"], "rejected_by": [e for e in edges if e["type"] == "REJECTED_BY"],
+                           "proposed": h[8]})
     try:
         trace = json.loads(r[8] or "[]")
     except json.JSONDecodeError:

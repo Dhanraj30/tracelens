@@ -8,7 +8,7 @@ interface Detail {
   trace: { step: number; tool: string; args: Record<string, unknown>; summary?: string; rows?: number; ms?: number; purpose?: string; status?: string }[]
   incident: { id: string; title: string; symptom: string; opened_at: number; service: string }
   action: { id: string; status: string; summary: string; deployment_id: string; runbook_id?: string } | null
-  hypotheses: { id: string; status: string; score: number; kind: string; label: string; confirmed: boolean; suspects: string[]; supported_by: { check: string; target: string }[]; rejected_by: { check: string; target: string }[] }[]
+  hypotheses: { id: string; status: string; score: number; kind: string; label: string; confirmed: boolean; suspects: string[]; supported_by: { check: string; target: string }[]; rejected_by: { check: string; target: string }[]; proposed?: boolean }[]
   source?: string
 }
 
@@ -75,6 +75,7 @@ export default function History({ refreshKey, onEvidence }: { refreshKey: number
                         <span className={`mr-1.5 rounded border px-1 text-[10px] ${h.status === 'supported' ? 'border-emerald-500/50 text-emerald-300' : h.status === 'rejected' ? 'border-slate-500 text-slate-300' : 'border-amber-500/50 text-amber-300'}`}>{h.status.toUpperCase()}</span>
                         <span className={h.status === 'rejected' ? 'line-through text-slate-400' : 'text-slate-100'}>{h.label}</span>
                         {h.confirmed && <span className="ml-1 text-[10px] text-emerald-300">operator confirmed</span>}
+                        {h.proposed === false && <span className="ml-1 rounded border border-slate-600 px-1 text-[10px] text-slate-400" title="The server checked this candidate on the guest's behalf; the guest never proposed it">checked by server, not proposed</span>}
                       </button>
                       <div className="mono mt-0.5 text-[10px] text-slate-500">
                         {h.supported_by.length > 0 && <span className="text-emerald-400/80">✓ {h.supported_by.map((e) => `${e.check}→${e.target}`).join(', ')} </span>}

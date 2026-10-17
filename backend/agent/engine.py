@@ -191,18 +191,18 @@ class Investigator:
         hyps: list[Hypothesis] = []
         off_path: list[Hypothesis] = []
         if self.verify_only is not None:
-            # verifying an outside agent's claim: only its suspects, and a suspect that is not even a deployment
-            # on the dependency path inside the window fails immediately
-            self._state("HYPOTHESIZE", f"verifying {len(self.verify_only)} suspect(s) proposed by an outside agent")
+            # verifying an outside agent's claim: EVERY deployment on the dependency path in the window is checked (so the
+            # ones the agent did not blame are still stored as ruled out, with their failed checks); a proposed suspect that is
+            # not even such a deployment fails immediately
+            self._state("HYPOTHESIZE", f"verifying {len(self.verify_only)} proposed suspect(s) against all {len(deps)} deployment(s) on the path")
             by_id = {d["id"]: d for d in deps}
             for sid in self.verify_only:
                 if sid not in by_id:
                     h = Hypothesis(id=f"{inv_id}-h{len(off_path) + 1}", kind="deployment", label=f"{sid} (not a deployment on the dependency path in the window)",
-                                   suspect=sid, service=affected)
+                                   suspect=sid, service=affected, details={"proposed": True})
                     h.checks.append(Check("in_window", False, f"{sid} is not a deployment to {affected} or any of its dependencies between {fmt_ts(window['from'])} and {fmt_ts(window['to'])}",
                                           [sid, affected], hard=True))
                     off_path.append(h)
-            deps = [by_id[s] for s in self.verify_only if s in by_id]
         else:
             self._state("HYPOTHESIZE", f"{len(deps)} deployment candidate(s) + shared-dependency failure")
         # most central service first, so the most load-bearing candidate is examined first
@@ -210,7 +210,8 @@ class Investigator:
             hyps.append(Hypothesis(
                 id=f"{inv_id}-h{n}", kind="deployment", label=f"{d['id']} ({d['service']} {d['version']} at {fmt_ts(d['at'])})",
                 suspect=d["id"], service=d["service"],
-                details={"deployment": d, "pagerank": pagerank.get(d["service"]), "risk": max((c.get("risk") or "low" for c in d["changes"]), key=_risk_rank, default="low")},
+                details={"deployment": d, "pagerank": pagerank.get(d["service"]), "risk": max((c.get("risk") or "low" for c in d["changes"]), key=_risk_rank, default="low"),
+                         "proposed": True if self.verify_only is None else d["id"] in self.verify_only},
             ))
         shared_hyp: Hypothesis | None = None
         if self.verify_only is None:
@@ -520,14 +521,19 @@ def verify_candidates(graph: Graph, incident_id: str, suspects: list[str]) -> di
     rep = inv.run(incident_id=incident_id)
     if rep["outcome"] == "unknown_entity":
         raise ToolError(rep.get("error", "unknown entity"), kind="unresolved", unresolved=[incident_id])
-    hyps = [{"suspect": h["suspect"], "status": h["status"], "score": h["score"], "label": h["label"],
+    hyps = [{"suspect": h["suspect"], "status": h["status"], "score": h["score"], "label": h["label"], "proposed": bool(h["details"].get("proposed")),
              "checks": [{"name": c["name"], "passed": c["passed"], "detail": c["detail"], "evidence_ids": c["evidence_ids"]} for c in h["checks"] if c["passed"] is not None]}
             for h in rep["hypotheses"] if h["kind"] == "deployment"]
-    action = rep.get("action")
+    # the agent's CLAIM is judged on what it proposed; everything else on the path is still checked and stored
+    proposed_supported = [h for h in hyps if h["proposed"] and h["status"] == "supported"]
+    claim_outcome = "root_cause_supported" if len(proposed_supported) == 1 else "multiple_candidates" if proposed_supported else "inconclusive"
+    action = rep.get("action") if claim_outcome == "root_cause_supported" and (rep.get("root_cause") or {}).get("deployment_id") == proposed_supported[0]["suspect"] else None
     if action:
         action = {k: v for k, v in action.items() if k != "id"}
-    return {"hypotheses": hyps, "confidence": rep["confidence"]["share"], "checks_run": sum(len(h["checks"]) for h in hyps),
-            "duration_ms": rep.get("duration_ms", 0), "action": action, "outcome": rep["outcome"], "root_cause": rep.get("root_cause")}
+    confidence = rep["confidence"]["share"] if action else (max((h["score"] for h in proposed_supported), default=0.0))
+    return {"hypotheses": hyps, "confidence": confidence, "checks_run": sum(len(h["checks"]) for h in hyps), "duration_ms": rep.get("duration_ms", 0),
+            "action": action, "outcome": claim_outcome, "engine_outcome": rep["outcome"], "root_cause": rep.get("root_cause"),
+            "candidates_checked": len(hyps), "rejected": [h["suspect"] for h in hyps if h["status"] == "rejected"]}
 
 
 # ---------------------------------------------------------------------- scoring helpers
