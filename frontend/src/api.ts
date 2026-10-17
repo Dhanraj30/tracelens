@@ -92,7 +92,7 @@ export interface Health {
   status: string
   falkordb: { reachable: boolean; host: string; port: number }
   graph: { name: string; nodes: number; seeded: boolean }
-  llm: { configured: boolean; model: string | null }
+  llm: { configured: boolean; model: string | null; fallback_model?: string | null }
 }
 
 async function j<T>(res: Response): Promise<T> {

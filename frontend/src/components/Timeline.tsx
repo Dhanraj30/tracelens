@@ -60,7 +60,13 @@ function Step({ t, onHover }: { t: TraceStep; onHover: (ids: string[] | null) =>
 
 export default function Timeline({ report, step, onHover }: { report: Report | null; step: number; onHover: (ids: string[] | null) => void }) {
   if (!report) {
-    return <div className="flex h-full items-center justify-center p-6 text-center text-sm text-slate-500">Pick an incident and press <b className="mx-1 text-slate-300">Investigate</b> — every tool call, its Cypher and its rows will appear here.</div>
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <p className="max-w-[260px] text-center text-sm leading-relaxed text-slate-500">
+          Pick an incident and press <b className="text-slate-300">Investigate</b>. Every tool call, its Cypher and its rows will appear here.
+        </p>
+      </div>
+    )
   }
   if (report.outcome === 'unknown_entity') {
     return (

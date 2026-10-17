@@ -95,47 +95,49 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       {/* header */}
-      <header className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--panel)] px-4 py-2">
-        <div className="flex items-center gap-2">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--border)] bg-[var(--panel)] px-4 py-2">
+        <div className="flex shrink-0 items-center gap-2">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/20 text-sky-300">◎</span>
           <div>
             <div className="text-[15px] font-bold leading-tight">TraceLens</div>
-            <div className="text-[10.5px] leading-tight text-slate-400">symptom → root cause, proven by graph traversal on FalkorDB</div>
+            <div className="hidden text-[10.5px] leading-tight text-slate-400 xl:block">symptom → root cause, proven by graph traversal on FalkorDB</div>
           </div>
         </div>
-        <div className="mx-2 h-6 w-px bg-[var(--border)]" />
-        <select value={selected} onChange={(e) => setSelected(e.target.value)} className="rounded-md border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5 text-sm">
-          {incidents.filter((i) => i.status === 'open').map((i) => <option key={i.id} value={i.id}>{i.id} — {i.title}</option>)}
-          <optgroup label="resolved (history)">
-            {incidents.filter((i) => i.status !== 'open').map((i) => <option key={i.id} value={i.id}>{i.id} — {i.title}</option>)}
-          </optgroup>
-        </select>
-        <button onClick={investigate} disabled={loading || !health?.falkordb.reachable} className="rounded-md bg-sky-500 px-3 py-1.5 text-sm font-semibold text-black hover:bg-sky-400 disabled:opacity-50">
-          {loading ? 'Investigating…' : 'Investigate'}
-        </button>
-        <div className="flex items-center overflow-hidden rounded-md border border-[var(--border)] text-[12px]">
-          <button onClick={() => setMode('deterministic')} className={`px-2.5 py-1.5 ${mode === 'deterministic' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>Deterministic</button>
-          <button onClick={() => setMode('llm')} title={health?.llm.configured ? `LLM: ${health.llm.model}` : 'No LLM key configured — will fall back to deterministic'} className={`px-2.5 py-1.5 ${mode === 'llm' ? 'bg-violet-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-            LLM{health && !health.llm.configured ? ' (no key)' : ''}
+        <div className="hidden h-6 w-px bg-[var(--border)] md:block" />
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <select value={selected} onChange={(e) => setSelected(e.target.value)} className="min-w-[220px] max-w-[420px] flex-1 truncate rounded-md border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5 text-sm">
+            {incidents.filter((i) => i.status === 'open').map((i) => <option key={i.id} value={i.id}>{i.id} — {i.title}</option>)}
+            <optgroup label="resolved (history)">
+              {incidents.filter((i) => i.status !== 'open').map((i) => <option key={i.id} value={i.id}>{i.id} — {i.title}</option>)}
+            </optgroup>
+          </select>
+          <button onClick={investigate} disabled={loading || !health?.falkordb.reachable} className="shrink-0 whitespace-nowrap rounded-md bg-sky-500 px-3 py-1.5 text-sm font-semibold text-black hover:bg-sky-400 disabled:opacity-50">
+            {loading ? 'Investigating…' : 'Investigate'}
           </button>
-        </div>
-        {report && (
-          <div className="flex items-center gap-1 text-[12px]">
-            <button onClick={() => setPlaying((p) => !p)} className="rounded border border-[var(--border)] px-2 py-1 hover:bg-slate-800">{playing && !done ? '❚❚' : '▶'}</button>
-            <button onClick={() => { setPlaying(false); setStep((s) => Math.min(s + 1, report.trace.length)) }} className="rounded border border-[var(--border)] px-2 py-1 hover:bg-slate-800">step</button>
-            <button onClick={() => { setPlaying(false); setStep(report.trace.length) }} className="rounded border border-[var(--border)] px-2 py-1 hover:bg-slate-800">skip ⏭</button>
-            <button onClick={() => { setStep(0); setPlaying(true) }} className="rounded border border-[var(--border)] px-2 py-1 hover:bg-slate-800">replay</button>
-            <span className="mono ml-1 text-slate-400">{Math.min(step, report.trace.length)}/{report.trace.length}</span>
+          <div className="flex shrink-0 items-center overflow-hidden rounded-md border border-[var(--border)] text-[12px]">
+            <button onClick={() => setMode('deterministic')} className={`whitespace-nowrap px-2.5 py-1.5 ${mode === 'deterministic' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>Deterministic</button>
+            <button onClick={() => setMode('llm')} title={health?.llm.configured ? `LLM: ${health.llm.model}${health.llm.fallback_model ? ` → ${health.llm.fallback_model}` : ''}` : 'No LLM key configured — will fall back to deterministic'} className={`whitespace-nowrap px-2.5 py-1.5 ${mode === 'llm' ? 'bg-violet-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              LLM{health && !health.llm.configured ? ' (no key)' : ''}
+            </button>
           </div>
-        )}
-        <div className="ml-auto flex items-center gap-2 text-[11.5px]">
-          <span className={`rounded border px-2 py-0.5 ${report?.mode === 'llm' ? 'border-violet-500/50 text-violet-300' : 'border-slate-600 text-slate-300'}`}>mode: {report?.mode ?? mode}</span>
-          <span className={`flex items-center gap-1 rounded border px-2 py-0.5 ${health?.falkordb.reachable ? 'border-emerald-500/40 text-emerald-300' : 'border-rose-500/40 text-rose-300'}`}>
+          {report && (
+            <div className="flex shrink-0 items-center gap-1 text-[12px]">
+              <button onClick={() => setPlaying((p) => !p)} className="rounded border border-[var(--border)] px-2 py-1 hover:bg-slate-800">{playing && !done ? '❚❚' : '▶'}</button>
+              <button onClick={() => { setPlaying(false); setStep((s) => Math.min(s + 1, report.trace.length)) }} className="rounded border border-[var(--border)] px-2 py-1 hover:bg-slate-800">step</button>
+              <button onClick={() => { setPlaying(false); setStep(report.trace.length) }} className="rounded border border-[var(--border)] px-2 py-1 hover:bg-slate-800">skip ⏭</button>
+              <button onClick={() => { setStep(0); setPlaying(true) }} className="rounded border border-[var(--border)] px-2 py-1 hover:bg-slate-800">replay</button>
+              <span className="mono ml-1 text-slate-400">{Math.min(step, report.trace.length)}/{report.trace.length}</span>
+            </div>
+          )}
+        </div>
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2 text-[11.5px]">
+          <span className={`whitespace-nowrap rounded border px-2 py-0.5 ${report?.mode === 'llm' ? 'border-violet-500/50 text-violet-300' : 'border-slate-600 text-slate-300'}`}>mode: {report?.mode ?? mode}</span>
+          <span className={`flex items-center gap-1 whitespace-nowrap rounded border px-2 py-0.5 ${health?.falkordb.reachable ? 'border-emerald-500/40 text-emerald-300' : 'border-rose-500/40 text-rose-300'}`}>
             <span className={`inline-block h-2 w-2 rounded-full ${health?.falkordb.reachable ? 'bg-emerald-400' : 'bg-rose-400'}`} />
             FalkorDB {health ? (health.falkordb.reachable ? `· ${health.graph.nodes} nodes` : 'unreachable') : '…'}
           </span>
-          <button onClick={() => reset(true)} className="rounded border border-[var(--border)] px-2 py-0.5 text-slate-300 hover:bg-slate-800" title="Delete Investigation / Hypothesis / Action nodes written by the agent">forget memory</button>
-          <button onClick={() => reset(false)} className="rounded border border-[var(--border)] px-2 py-0.5 text-slate-300 hover:bg-slate-800">reset demo</button>
+          <button onClick={() => reset(true)} className="whitespace-nowrap rounded border border-[var(--border)] px-2 py-0.5 text-slate-300 hover:bg-slate-800" title="Delete Investigation / Hypothesis / Action nodes written by the agent">forget memory</button>
+          <button onClick={() => reset(false)} className="whitespace-nowrap rounded border border-[var(--border)] px-2 py-0.5 text-slate-300 hover:bg-slate-800">reset demo</button>
         </div>
       </header>
 
@@ -144,7 +146,7 @@ export default function App() {
       {/* body */}
       <main className="grid min-h-0 flex-1 grid-cols-12 gap-3 p-3">
         {/* left: incident + timeline */}
-        <section className="panel col-span-3 flex min-h-0 flex-col">
+        <section className="panel col-span-4 flex min-h-0 flex-col 2xl:col-span-3">
           <div className="border-b border-[var(--border)] p-3">
             <div className="text-[11px] uppercase tracking-wider text-slate-400">Incident</div>
             {inc ? (
@@ -170,8 +172,8 @@ export default function App() {
         </section>
 
         {/* center: graph */}
-        <section className="panel col-span-5 relative min-h-0 overflow-hidden">
-          <div className="absolute left-3 top-2 z-10 flex flex-wrap gap-1.5 text-[10.5px]">
+        <section className="panel relative col-span-4 min-h-0 overflow-hidden 2xl:col-span-5">
+          <div className="absolute left-3 right-3 top-2 z-10 flex flex-wrap gap-1.5 text-[10.5px]">
             <span className="rounded border border-pink-500/50 bg-black/50 px-1.5 text-pink-300">symptom</span>
             <span className="rounded border border-sky-500/50 bg-black/50 px-1.5 text-sky-300">visited by traversal</span>
             <span className="rounded border border-amber-500/50 bg-black/50 px-1.5 text-amber-300">suspect</span>
@@ -180,13 +182,13 @@ export default function App() {
             <span className="rounded border border-emerald-500/50 bg-black/50 px-1.5 text-emerald-300">healthy sibling</span>
             <span className="rounded border border-dashed border-violet-500/60 bg-black/50 px-1.5 text-violet-300">external boundary</span>
           </div>
-          {graph ? <DependencyGraph graph={graph} hl={hl} /> : <div className="flex h-full items-center justify-center text-slate-500">loading graph…</div>}
+          {graph ? <div className="h-full w-full pt-10"><DependencyGraph graph={graph} hl={hl} /></div> : <div className="flex h-full items-center justify-center text-slate-500">loading graph…</div>}
           {loading && <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-sm text-sky-300">running graph queries…</div>}
         </section>
 
         {/* right: hypotheses / verdict */}
         <section className="panel col-span-4 flex min-h-0 flex-col">
-          <div className="flex border-b border-[var(--border)] text-[12px]">
+          <div className="flex flex-wrap items-center border-b border-[var(--border)] text-[12px]">
             <button onClick={() => setRightTab('hypotheses')} className={`px-3 py-2 ${rightTab === 'hypotheses' ? 'border-b-2 border-sky-400 text-white' : 'text-slate-400'}`}>
               Hypotheses {visibleHyps.length ? `(${visibleHyps.filter((h) => h.status === 'supported').length} supported · ${visibleHyps.filter((h) => h.status === 'rejected').length} ruled out)` : ''}
             </button>
@@ -194,7 +196,7 @@ export default function App() {
             {evidence.length > 0 && <button onClick={() => setEvidence([])} className="ml-auto px-3 text-[11px] text-slate-400 hover:text-white">clear highlight ✕</button>}
           </div>
           <div className="scroll-thin min-h-0 flex-1 overflow-auto">
-            {!report && <div className="p-6 text-center text-sm text-slate-500">Hypotheses are generated from deployments on the dependency path, then each is tested with graph checks. Ruled-out suspects stay visible — with the evidence that ruled them out.</div>}
+            {!report && <div className="flex h-full items-center justify-center p-6"><p className="max-w-[360px] text-center text-sm leading-relaxed text-slate-500">Hypotheses are generated from deployments on the dependency path, then each is tested with graph checks. Ruled-out suspects stay visible, with the evidence that ruled them out.</p></div>}
             {report && !done && <div className="p-6 text-center text-sm text-slate-500 pulse">gathering evidence… ({Math.min(step, report.trace.length)}/{report.trace.length} tool calls)</div>}
             {report && done && rightTab === 'hypotheses' && <Hypotheses hyps={visibleHyps} onEvidence={setEvidence} selected={evidence} />}
             {report && done && rightTab === 'verdict' && <Verdict report={report} onEvidence={(ids) => { setEvidence(ids) }} onAction={onAction} />}

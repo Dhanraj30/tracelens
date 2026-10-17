@@ -48,7 +48,7 @@ body {
 }
 .svc-node .name { font-weight: 600; font-size: 13px; }
 .svc-node .tier { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
-.svc-node.dim { opacity: .35; }
+.svc-node.dim { opacity: .5; }
 .svc-node.visited { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56,189,248,.15); }
 .svc-node.suspect { border-color: #fbbf24; box-shadow: 0 0 0 3px rgba(251,191,36,.18); }
 .svc-node.rejected { border-color: #475569; background: #0b1220; }
