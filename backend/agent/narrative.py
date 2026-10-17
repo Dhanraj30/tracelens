@@ -28,11 +28,12 @@ def fmt_date(ts: int | float | None) -> str:
 class NarrativeValidator:
     """Rejects narratives that name entities absent from the evidence, or that over-claim."""
 
-    def __init__(self, known_services: set[str], evidence_ids: set[str], traversals_empty: bool):
+    def __init__(self, known_services: set[str], evidence_ids: set[str], traversals_empty: bool, outcome: str | None = None):
         self.known_services = {s.lower() for s in known_services}
         self.evidence_ids = {e.lower() for e in evidence_ids}
         self.evidence_services = {e.lower() for e in evidence_ids if e.lower() in self.known_services}
         self.traversals_empty = traversals_empty
+        self.outcome = outcome
 
     def validate(self, text: str) -> tuple[bool, list[str]]:
         problems: list[str] = []
@@ -48,6 +49,12 @@ class NarrativeValidator:
                 problems.append(f"over-claims: '{phrase}'")
         if self.traversals_empty and re.search(r"\b(impact(s|ed)?|affect(s|ed)?|cascad\w+)\b", low):
             problems.append("claims impact although dependency traversals returned nothing")
+        if self.outcome == "inconclusive":
+            # an inconclusive investigation must say so, and must not promote any hypothesis to "supported"
+            if "inconclusive" not in low:
+                problems.append("outcome is inconclusive but the narrative never says so")
+            if re.search(r"(?<!best[- ])\bsupported\b", low):
+                problems.append("outcome is inconclusive but the narrative labels something 'supported'")
         return (not problems, problems)
 
 

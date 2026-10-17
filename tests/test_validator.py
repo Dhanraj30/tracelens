@@ -22,6 +22,14 @@ def test_rejects_service_not_in_evidence():
     assert not ok and any("kafka" in p for p in problems)
 
 
+def test_inconclusive_outcome_cannot_be_narrated_as_supported():
+    v = NarrativeValidator(KNOWN, EVIDENCE, traversals_empty=False, outcome="inconclusive")
+    ok, problems = v.validate("The payments-api hypothesis is supported.")
+    assert not ok and any("inconclusive" in p for p in problems)
+    ok, _ = v.validate("Inconclusive: the best-supported candidate on payments-api could not be confirmed; missing data: vendor status.")
+    assert ok
+
+
 def test_rejects_overclaim_and_impact_without_traversal():
     v = NarrativeValidator(KNOWN, EVIDENCE, traversals_empty=True)
     ok, problems = v.validate("This is the proven cause; it impacted checkout.")

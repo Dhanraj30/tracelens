@@ -451,7 +451,7 @@ class Investigator:
             return
         known = {r[0] for r in self.graph.read("MATCH (s:Service) RETURN s.name")[0]}
         evidence_ids = set(_collect_ids(evidence)) | {rep["incident"]["id"], rep["incident"]["service"]}
-        ok, problems = NarrativeValidator(known, evidence_ids, traversals_empty=not rep["graph_highlights"].get("visited")).validate(text)
+        ok, problems = NarrativeValidator(known, evidence_ids, traversals_empty=not rep["graph_highlights"].get("visited"), outcome=rep["outcome"]).validate(text)
         if ok:
             rep["narrative"], rep["narrative_source"] = text, "llm"
         else:
