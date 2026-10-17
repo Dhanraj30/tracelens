@@ -1,0 +1,581 @@
+{
+  "meta": {
+    "date": "2026-10-17 14:18 UTC",
+    "commit": "c4a5198",
+    "mode": "live",
+    "runs": 1,
+    "primary_model": "openai/gpt-oss-120b",
+    "fallback_model": "gemini-3.5-flash-lite",
+    "llm_requests_used": 28,
+    "max_requests": 100,
+    "models_seen": [
+      "ChatOpenAI"
+    ]
+  },
+  "summary": {
+    "agent": {
+      "per_case": {
+        "A": {
+          "title": "Scenario A \u2014 checkout, red herring",
+          "runs": 1,
+          "verified_correct": 1,
+          "outcome_match": 1,
+          "ruled_out_correct": 1,
+          "tool_calls_avg": 8,
+          "llm_requests_avg": 9,
+          "latency_avg_s": 173.9,
+          "fallbacks": 0,
+          "validation_rejections": 0,
+          "verifier_rejections": 2,
+          "narratives_rejected": null,
+          "tools_in_order": [
+            "get_incident \u2192 upstream_dependencies \u2192 recall \u2192 deployments_in_window \u2192 error_timeline \u2192 path_between \u2192 healthy_siblings \u2192 record_investigation"
+          ]
+        },
+        "B_after_A": {
+          "title": "Scenario B after A (same tenant) \u2014 memory",
+          "runs": 1,
+          "verified_correct": 1,
+          "outcome_match": 1,
+          "ruled_out_correct": 1,
+          "tool_calls_avg": 6,
+          "llm_requests_avg": 7,
+          "latency_avg_s": 133.2,
+          "fallbacks": 0,
+          "validation_rejections": 0,
+          "verifier_rejections": 0,
+          "narratives_rejected": null,
+          "tools_in_order": [
+            "get_incident \u2192 upstream_dependencies \u2192 recall \u2192 deployments_in_window \u2192 error_timeline \u2192 record_investigation"
+          ]
+        },
+        "B_alone": {
+          "title": "Scenario B alone (fresh tenant) \u2014 no memory",
+          "runs": 1,
+          "verified_correct": 0,
+          "outcome_match": 0,
+          "ruled_out_correct": 0,
+          "tool_calls_avg": 0,
+          "llm_requests_avg": 6,
+          "latency_avg_s": 64.8,
+          "fallbacks": 0,
+          "validation_rejections": 0,
+          "verifier_rejections": 0,
+          "narratives_rejected": null,
+          "tools_in_order": [
+            ""
+          ]
+        },
+        "C": {
+          "title": "Scenario C \u2014 search, incomplete evidence",
+          "runs": 1,
+          "verified_correct": 0,
+          "outcome_match": 0,
+          "ruled_out_correct": 0,
+          "tool_calls_avg": 0,
+          "llm_requests_avg": 4,
+          "latency_avg_s": 9.8,
+          "fallbacks": 0,
+          "validation_rejections": 0,
+          "verifier_rejections": 0,
+          "narratives_rejected": null,
+          "tools_in_order": [
+            ""
+          ]
+        },
+        "unknown": {
+          "title": "Unknown incident id",
+          "runs": 1,
+          "verified_correct": 0,
+          "outcome_match": 0,
+          "ruled_out_correct": 1,
+          "tool_calls_avg": 1,
+          "llm_requests_avg": 2,
+          "latency_avg_s": 5.9,
+          "fallbacks": 0,
+          "validation_rejections": 1,
+          "verifier_rejections": 0,
+          "narratives_rejected": null,
+          "tools_in_order": [
+            "get_incident"
+          ]
+        }
+      },
+      "verified_correct": 2,
+      "total": 5,
+      "llm_requests": 28,
+      "fallbacks": 0
+    },
+    "baseline": {
+      "per_case": {
+        "A": {
+          "title": "Scenario A \u2014 checkout, red herring",
+          "runs": 1,
+          "verified_correct": 1,
+          "outcome_match": 1,
+          "ruled_out_correct": 1,
+          "tool_calls_avg": 11,
+          "llm_requests_avg": 0,
+          "latency_avg_s": 0.2,
+          "fallbacks": 0,
+          "validation_rejections": 0,
+          "verifier_rejections": 0,
+          "narratives_rejected": 0,
+          "tools_in_order": [
+            "get_incident \u2192 upstream_dependencies \u2192 recall \u2192 deployments_in_window \u2192 error_timeline \u2192 critical_services \u2192 path_between \u2192 path_between \u2192 healthy_siblings \u2192 similar_incidents \u2192 record_investigation"
+          ]
+        },
+        "B_after_A": {
+          "title": "Scenario B after A (same tenant) \u2014 memory",
+          "runs": 1,
+          "verified_correct": 1,
+          "outcome_match": 1,
+          "ruled_out_correct": 1,
+          "tool_calls_avg": 5,
+          "llm_requests_avg": 0,
+          "latency_avg_s": 0.1,
+          "fallbacks": 0,
+          "validation_rejections": 0,
+          "verifier_rejections": 0,
+          "narratives_rejected": 0,
+          "tools_in_order": [
+            "get_incident \u2192 upstream_dependencies \u2192 recall \u2192 error_timeline \u2192 record_investigation"
+          ]
+        },
+        "B_alone": {
+          "title": "Scenario B alone (fresh tenant) \u2014 no memory",
+          "runs": 1,
+          "verified_correct": 1,
+          "outcome_match": 1,
+          "ruled_out_correct": 1,
+          "tool_calls_avg": 10,
+          "llm_requests_avg": 0,
+          "latency_avg_s": 0.1,
+          "fallbacks": 0,
+          "validation_rejections": 0,
+          "verifier_rejections": 0,
+          "narratives_rejected": 0,
+          "tools_in_order": [
+            "get_incident \u2192 upstream_dependencies \u2192 recall \u2192 deployments_in_window \u2192 error_timeline \u2192 critical_services \u2192 path_between \u2192 healthy_siblings \u2192 similar_incidents \u2192 record_investigation"
+          ]
+        },
+        "C": {
+          "title": "Scenario C \u2014 search, incomplete evidence",
+          "runs": 1,
+          "verified_correct": 1,
+          "outcome_match": 1,
+          "ruled_out_correct": 1,
+          "tool_calls_avg": 9,
+          "llm_requests_avg": 0,
+          "latency_avg_s": 0.1,
+          "fallbacks": 0,
+          "validation_rejections": 0,
+          "verifier_rejections": 0,
+          "narratives_rejected": 0,
+          "tools_in_order": [
+            "get_incident \u2192 upstream_dependencies \u2192 recall \u2192 deployments_in_window \u2192 error_timeline \u2192 critical_services \u2192 similar_incidents \u2192 healthy_siblings \u2192 record_investigation"
+          ]
+        },
+        "unknown": {
+          "title": "Unknown incident id",
+          "runs": 1,
+          "verified_correct": 1,
+          "outcome_match": 1,
+          "ruled_out_correct": 1,
+          "tool_calls_avg": 0,
+          "llm_requests_avg": 0,
+          "latency_avg_s": 0.0,
+          "fallbacks": 0,
+          "validation_rejections": 0,
+          "verifier_rejections": 0,
+          "narratives_rejected": 0,
+          "tools_in_order": [
+            ""
+          ]
+        }
+      },
+      "verified_correct": 5,
+      "total": 5,
+      "llm_requests": 0,
+      "fallbacks": 0
+    }
+  },
+  "results": [
+    {
+      "mode": "agent",
+      "case": "A",
+      "title": "Scenario A \u2014 checkout, red herring",
+      "source": "live",
+      "error": null,
+      "latency_s": 173.9,
+      "tool_calls": 8,
+      "tools_in_order": [
+        "get_incident",
+        "upstream_dependencies",
+        "recall",
+        "deployments_in_window",
+        "error_timeline",
+        "path_between",
+        "healthy_siblings",
+        "record_investigation"
+      ],
+      "llm_requests": 9,
+      "model_used": "openai/gpt-oss-120b",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 0,
+      "narratives_rejected": null,
+      "proposals_rejected_by_verifier": 2,
+      "recorded_id": "inv-1792246860767",
+      "verified_correct": true,
+      "outcome_match": true,
+      "ruled_out_correct": true,
+      "ruled_out_how": {
+        "dep-chk-1405": "rejected_by_server_check"
+      },
+      "memory_used": false,
+      "supported": [
+        "dep-pay-1352"
+      ],
+      "rejected": [
+        "dep-cart-1320",
+        "dep-chk-1405"
+      ],
+      "claimed_outcome": "supported",
+      "verified_outcome": "root_cause_supported",
+      "failure_reasons": [],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-agent"
+    },
+    {
+      "mode": "agent",
+      "case": "B_after_A",
+      "title": "Scenario B after A (same tenant) \u2014 memory",
+      "source": "live",
+      "error": null,
+      "latency_s": 133.2,
+      "tool_calls": 6,
+      "tools_in_order": [
+        "get_incident",
+        "upstream_dependencies",
+        "recall",
+        "deployments_in_window",
+        "error_timeline",
+        "record_investigation"
+      ],
+      "llm_requests": 7,
+      "model_used": "openai/gpt-oss-120b",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 0,
+      "narratives_rejected": null,
+      "proposals_rejected_by_verifier": 0,
+      "recorded_id": "inv-1792247006016",
+      "verified_correct": true,
+      "outcome_match": true,
+      "ruled_out_correct": true,
+      "ruled_out_how": {},
+      "memory_used": true,
+      "supported": [
+        "dep-pay-1352"
+      ],
+      "rejected": [],
+      "claimed_outcome": "root_cause_supported",
+      "verified_outcome": "root_cause_supported",
+      "failure_reasons": [],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-agent"
+    },
+    {
+      "mode": "agent",
+      "case": "B_alone",
+      "title": "Scenario B alone (fresh tenant) \u2014 no memory",
+      "source": "live",
+      "error": "OpenAIInvalidRequestError: Error code: 400 - [{'error': {'code': 400, 'message': 'Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature m",
+      "latency_s": 64.8,
+      "tool_calls": 0,
+      "tools_in_order": [],
+      "llm_requests": 6,
+      "model_used": "n/a",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 0,
+      "narratives_rejected": null,
+      "proposals_rejected_by_verifier": 0,
+      "recorded_id": null,
+      "verified_correct": false,
+      "outcome_match": false,
+      "ruled_out_correct": false,
+      "ruled_out_how": {},
+      "memory_used": false,
+      "supported": [],
+      "rejected": [],
+      "claimed_outcome": null,
+      "verified_outcome": null,
+      "failure_reasons": [
+        "OpenAIInvalidRequestError: Error code: 400 - [{'error': {'code': 400, 'message': 'Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature m"
+      ],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-agent"
+    },
+    {
+      "mode": "agent",
+      "case": "C",
+      "title": "Scenario C \u2014 search, incomplete evidence",
+      "source": "live",
+      "error": "OpenAIInvalidRequestError: Error code: 400 - [{'error': {'code': 400, 'message': 'Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature m",
+      "latency_s": 9.8,
+      "tool_calls": 0,
+      "tools_in_order": [],
+      "llm_requests": 4,
+      "model_used": "n/a",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 0,
+      "narratives_rejected": null,
+      "proposals_rejected_by_verifier": 0,
+      "recorded_id": null,
+      "verified_correct": false,
+      "outcome_match": false,
+      "ruled_out_correct": false,
+      "ruled_out_how": {},
+      "memory_used": false,
+      "supported": [],
+      "rejected": [],
+      "claimed_outcome": null,
+      "verified_outcome": null,
+      "failure_reasons": [
+        "OpenAIInvalidRequestError: Error code: 400 - [{'error': {'code': 400, 'message': 'Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature m"
+      ],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-agent"
+    },
+    {
+      "mode": "agent",
+      "case": "unknown",
+      "title": "Unknown incident id",
+      "source": "live",
+      "error": null,
+      "latency_s": 5.9,
+      "tool_calls": 1,
+      "tools_in_order": [
+        "get_incident"
+      ],
+      "llm_requests": 2,
+      "model_used": "openai/gpt-oss-120b",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 1,
+      "narratives_rejected": null,
+      "proposals_rejected_by_verifier": 0,
+      "recorded_id": null,
+      "verified_correct": false,
+      "outcome_match": false,
+      "ruled_out_correct": true,
+      "ruled_out_how": {},
+      "memory_used": false,
+      "supported": [],
+      "rejected": [],
+      "claimed_outcome": null,
+      "verified_outcome": null,
+      "failure_reasons": [
+        "expected unknown_entity with root None; got verified_outcome=None, supported=[], recorded=no, tool_calls=1"
+      ],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-agent"
+    },
+    {
+      "mode": "baseline",
+      "case": "A",
+      "title": "Scenario A \u2014 checkout, red herring",
+      "source": "deterministic engine",
+      "error": null,
+      "latency_s": 0.2,
+      "tool_calls": 11,
+      "tools_in_order": [
+        "get_incident",
+        "upstream_dependencies",
+        "recall",
+        "deployments_in_window",
+        "error_timeline",
+        "critical_services",
+        "path_between",
+        "path_between",
+        "healthy_siblings",
+        "similar_incidents",
+        "record_investigation"
+      ],
+      "llm_requests": 0,
+      "model_used": "none",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 0,
+      "narratives_rejected": 0,
+      "proposals_rejected_by_verifier": null,
+      "recorded_id": "inv-1792247119364",
+      "verified_correct": true,
+      "outcome_match": true,
+      "ruled_out_correct": true,
+      "ruled_out_how": {
+        "dep-chk-1405": "rejected"
+      },
+      "memory_used": false,
+      "supported": [
+        "dep-pay-1352"
+      ],
+      "rejected": [
+        "dep-cart-1320",
+        "dep-chk-1405",
+        null
+      ],
+      "claimed_outcome": "root_cause_supported",
+      "verified_outcome": "root_cause_supported",
+      "failure_reasons": [],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-baseline"
+    },
+    {
+      "mode": "baseline",
+      "case": "B_after_A",
+      "title": "Scenario B after A (same tenant) \u2014 memory",
+      "source": "deterministic engine",
+      "error": null,
+      "latency_s": 0.1,
+      "tool_calls": 5,
+      "tools_in_order": [
+        "get_incident",
+        "upstream_dependencies",
+        "recall",
+        "error_timeline",
+        "record_investigation"
+      ],
+      "llm_requests": 0,
+      "model_used": "none",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 0,
+      "narratives_rejected": 0,
+      "proposals_rejected_by_verifier": null,
+      "recorded_id": "inv-1792247119560",
+      "verified_correct": true,
+      "outcome_match": true,
+      "ruled_out_correct": true,
+      "ruled_out_how": {},
+      "memory_used": true,
+      "supported": [
+        "dep-pay-1352"
+      ],
+      "rejected": [],
+      "claimed_outcome": "answered_from_memory",
+      "verified_outcome": "answered_from_memory",
+      "failure_reasons": [],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-baseline"
+    },
+    {
+      "mode": "baseline",
+      "case": "B_alone",
+      "title": "Scenario B alone (fresh tenant) \u2014 no memory",
+      "source": "deterministic engine",
+      "error": null,
+      "latency_s": 0.1,
+      "tool_calls": 10,
+      "tools_in_order": [
+        "get_incident",
+        "upstream_dependencies",
+        "recall",
+        "deployments_in_window",
+        "error_timeline",
+        "critical_services",
+        "path_between",
+        "healthy_siblings",
+        "similar_incidents",
+        "record_investigation"
+      ],
+      "llm_requests": 0,
+      "model_used": "none",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 0,
+      "narratives_rejected": 0,
+      "proposals_rejected_by_verifier": null,
+      "recorded_id": "inv-1792247119638",
+      "verified_correct": true,
+      "outcome_match": true,
+      "ruled_out_correct": true,
+      "ruled_out_how": {},
+      "memory_used": false,
+      "supported": [
+        "dep-pay-1352"
+      ],
+      "rejected": [
+        "postgres-payments"
+      ],
+      "claimed_outcome": "root_cause_supported",
+      "verified_outcome": "root_cause_supported",
+      "failure_reasons": [],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-baseline"
+    },
+    {
+      "mode": "baseline",
+      "case": "C",
+      "title": "Scenario C \u2014 search, incomplete evidence",
+      "source": "deterministic engine",
+      "error": null,
+      "latency_s": 0.1,
+      "tool_calls": 9,
+      "tools_in_order": [
+        "get_incident",
+        "upstream_dependencies",
+        "recall",
+        "deployments_in_window",
+        "error_timeline",
+        "critical_services",
+        "similar_incidents",
+        "healthy_siblings",
+        "record_investigation"
+      ],
+      "llm_requests": 0,
+      "model_used": "none",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 0,
+      "narratives_rejected": 0,
+      "proposals_rejected_by_verifier": null,
+      "recorded_id": "inv-1792247119753",
+      "verified_correct": true,
+      "outcome_match": true,
+      "ruled_out_correct": true,
+      "ruled_out_how": {},
+      "memory_used": false,
+      "supported": [],
+      "rejected": [],
+      "claimed_outcome": "inconclusive",
+      "verified_outcome": "inconclusive",
+      "failure_reasons": [],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-baseline"
+    },
+    {
+      "mode": "baseline",
+      "case": "unknown",
+      "title": "Unknown incident id",
+      "source": "deterministic engine",
+      "error": null,
+      "latency_s": 0.0,
+      "tool_calls": 0,
+      "tools_in_order": [],
+      "llm_requests": 0,
+      "model_used": "none",
+      "fallbacks": [],
+      "tool_calls_rejected_by_validation": 0,
+      "narratives_rejected": 0,
+      "proposals_rejected_by_verifier": null,
+      "recorded_id": "inv-1792247119843",
+      "verified_correct": true,
+      "outcome_match": true,
+      "ruled_out_correct": true,
+      "ruled_out_how": {},
+      "memory_used": false,
+      "supported": [],
+      "rejected": [],
+      "claimed_outcome": "unknown_entity",
+      "verified_outcome": "unknown_entity",
+      "failure_reasons": [],
+      "run_id": "91b6f81",
+      "tenant": "tracelens:eval-91b6f81-baseline"
+    }
+  ]
+}

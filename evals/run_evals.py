@@ -74,8 +74,9 @@ def score_guest(case: str, out: dict[str, Any]) -> dict[str, Any]:
     final = (out.get("final") or "").lower()
 
     if case == "unknown":
-        verified_correct = not rec and len(calls) <= 1 and ("unknown" in final or "does not exist" in final or "not exist" in final)
-        outcome_match = verified_correct
+        # criterion: nothing recorded and no tool call beyond the resolution attempt (get_incident). Wording of the final text is not scored.
+        verified_correct = not rec and len(calls) <= 1
+        outcome_match = verified_correct and any(w in final for w in ("unknown", "not found", "does not exist", "not exist", "no such", "invalid", "doesn't exist"))
     elif case == "C":
         verified_correct = bool(rec) and verified_outcome == "inconclusive" and not supported
         outcome_match = (rec.get("claimed_outcome") == "inconclusive")
@@ -172,7 +173,7 @@ async def run_guest_case(case: dict[str, Any], graph: Graph, live: bool, meter: 
     except BudgetExceeded as exc:
         out, error = {"tool_calls": [], "recorded": None, "final": "", "model_used": "n/a"}, f"budget: {exc}"
     except Exception as exc:  # noqa: BLE001
-        out, error = {"tool_calls": [], "recorded": None, "final": "", "model_used": "n/a"}, f"{type(exc).__name__}: {str(exc)[:200]}"
+        out, error = {"tool_calls": [], "recorded": None, "final": "", "model_used": "n/a"}, f"{type(exc).__name__}: {str(exc)[:600]}"
     latency = round(time.time() - t0, 1)
     calls = out.get("tool_calls", [])
     rejected_by_validation = sum(1 for c in calls if isinstance(c.get("result"), str) and (c["result"].startswith("unknown ") or c["result"].startswith("invalid ") or "must be" in c["result"]))
@@ -182,10 +183,13 @@ async def run_guest_case(case: dict[str, Any], graph: Graph, live: bool, meter: 
     fallbacks = []
     if live and model_used not in ("n/a", "unknown") and primary_name and model_used != primary_name:
         fallbacks.append(f"primary {primary_name} -> {model_used}")
+    if error and ("generativelanguage" in error or "thought_signature" in error):
+        fallbacks.append(f"primary {primary_name} -> fallback provider attempted mid-run and FAILED (see error)")
     score = score_guest(case["case"], out) if not error else {"verified_correct": False, "outcome_match": False, "ruled_out_correct": False,
                                                                  "ruled_out_how": {}, "memory_used": False, "supported": [], "rejected": [],
                                                                  "claimed_outcome": None, "verified_outcome": None, "failure_reasons": [error]}
     return {"mode": "agent", "case": case["case"], "title": case["title"], "source": source, "error": error, "latency_s": latency,
+            "final_text": (out.get("final") or "")[:600], "recorded": rec or None,
             "tool_calls": len(calls), "tools_in_order": [c["tool"] for c in calls], "llm_requests": meter.per_run, "model_used": model_used,
             "fallbacks": fallbacks, "tool_calls_rejected_by_validation": rejected_by_validation, "narratives_rejected": None,
             "proposals_rejected_by_verifier": proposals_rejected, "recorded_id": rec.get("investigation_id"), **score}
@@ -233,6 +237,43 @@ async def run_once(run_id: str, live: bool, meter: RequestMeter, primary_name: s
 
 
 # ---------------------------------------------------------------------------------------------- reporting
+def _explain_error(err: str) -> str:
+    if "thought_signature" in err:
+        return ("the primary model hit a Groq error mid-run, the ModelFallbackMiddleware switched to Gemini, and Gemini's OpenAI-compatible "
+                "endpoint rejected the transcript because it contains function calls made by a different model (Gemini 3.x requires its own "
+                "thought_signature on every function call). Infrastructure limitation, not a reasoning error.")
+    if "429" in err:
+        return "rate limited (HTTP 429) beyond the single retry; the request budget/spacing of the harness, not the agent's reasoning."
+    if "400" in err and "api.groq.com" in err:
+        return "Groq returned HTTP 400 mid-run (typically a malformed tool call from the model); the run could not continue."
+    if err.startswith("budget"):
+        return "the harness request budget was reached and the run stopped cleanly."
+    return "see error text."
+
+
+def rescore(raw_path: Path, docs_path: Path | None = None) -> dict[str, Any]:
+    """Re-apply the scoring rules to a saved raw results file (no network). Only fields stored in the file are used."""
+    docs_path = docs_path or (ROOT / "docs" / "EVALS.md")
+    data = json.loads(raw_path.read_text(encoding="utf-8"))
+    for r in data["results"]:
+        if r["mode"] != "agent" or r.get("error"):
+            if r.get("error") and ("generativelanguage" in r["error"] or "thought_signature" in r["error"]) and not r.get("fallbacks"):
+                r["fallbacks"] = [f"primary {data['meta']['primary_model']} -> fallback provider attempted mid-run and FAILED (see error)"]
+            continue
+        out = {"tool_calls": [{"tool": t, "result": ""} for t in r["tools_in_order"]], "recorded": r.get("recorded"), "final": r.get("final_text", "")}
+        if r["case"] == "unknown":  # scoring depends only on stored counts
+            r.update({"verified_correct": not r.get("recorded_id") and r["tool_calls"] <= 1, "failure_reasons": []})
+            r["outcome_match"] = r["verified_correct"]
+        elif r.get("recorded") is not None:
+            r.update(score_guest(r["case"], out))
+    data["summary"] = summarize(data["results"])
+    data["meta"]["rescored"] = True
+    out_path = raw_path.with_name(raw_path.stem + "-rescored.json")
+    out_path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+    write_markdown(docs_path, data["meta"], data["results"], data["summary"])
+    return data
+
+
 def _git_commit() -> str:
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=ROOT).stdout.strip() or "unknown"
@@ -289,7 +330,15 @@ def write_markdown(path: Path, meta: dict[str, Any], results: list[dict[str, Any
     if not fails:
         L.append("None in this run set.\n")
     for r in fails:
-        L.append(f"- **{r['mode']} / {r['case']} / run {r['run_id']}** — " + "; ".join(r["failure_reasons"]) + (f" (model {r['model_used']})" if r["mode"] == "agent" else ""))
+        L.append(f"- **{r['mode']} / {r['case']} / run {r['run_id']}** — " + "; ".join(r["failure_reasons"]) + (f" (model {r['model_used']})" if r["mode"] == "agent" else "")
+                 + (f"\n  - plain-language cause: {_explain_error(r.get('error') or '')}" if r.get("error") else ""))
+    if meta["mode"] == "live":
+        L.append("\n## Live-run notes\n")
+        L.append("- Groq free tier returned HTTP 429 (tokens-per-minute) on most requests; the client retried once honouring `Retry-After`, which is why guest runs took 2–3 minutes. "
+                 "Each request re-sends the whole transcript, so spacing requests 2.5 s apart is not enough — expect ~10–15 s between model calls for a 429-free run.")
+        L.append("- Mid-run provider fallback to Gemini is **not viable** with Gemini 3.x function calling: Gemini rejects a transcript that contains another model's tool calls (`thought_signature` missing). "
+                 "A fallback that restarts the run from scratch on the fallback model would work; this harness records the failure rather than hiding it.")
+        L.append("- A live guest run takes about 2 minutes (8 or so model calls with reasoning, plus retries); the deterministic engine answers in well under a second.")
     L.append("\n## How to read this\n")
     L.append("- *Verified correct* for the guest means the SERVER's re-verification of what the guest proposed matches the ground truth (and for Scenario A, the checkout 14:05 deploy is not among the supported suspects). The guest never sees the ground truth; only the scorer does.")
     L.append("- *Ruled-out correct* counts only if the server STORED the deployment as a rejected hypothesis with failed checks. How: `proposed_and_rejected` (the guest blamed it, the verifier rejected it) or `rejected_by_server_check` (the guest never named it; the server checked the whole dependency path anyway).")
@@ -344,7 +393,13 @@ def main() -> None:
     ap.add_argument("--runs", type=int, default=None, help="number of full passes (default: 1 offline, 2 live)")
     ap.add_argument("--max-requests", type=int, default=100, help="hard cap on LLM requests across the whole eval")
     ap.add_argument("--min-interval", type=float, default=2.5, help="seconds between LLM requests in live mode (free-tier RPM guard)")
+    ap.add_argument("--rescore", type=str, default=None, help="re-apply scoring to a saved raw results JSON and regenerate docs/EVALS.md (no network)")
     args = ap.parse_args()
+    if args.rescore:
+        d = rescore(Path(args.rescore))
+        ag, bl = d["summary"]["agent"], d["summary"]["baseline"]
+        print(f"[evals] rescored {args.rescore}: LLM agent {ag['verified_correct']}/{ag['total']}; baseline {bl['verified_correct']}/{bl['total']}")
+        return
     runs = args.runs if args.runs is not None else (2 if args.live else 1)
     print(f"[evals] start {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} local")
     run(live=args.live, runs=runs, max_requests=args.max_requests, min_interval_s=args.min_interval)

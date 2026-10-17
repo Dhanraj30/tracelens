@@ -1,0 +1,214 @@
+  from langchain.mcp import MCPAdapter
+[10/17/26 19:48:59] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[10/17/26 19:49:02] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[10/17/26 19:49:04] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[10/17/26 19:49:07] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[10/17/26 19:49:08] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 16.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:49:26] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 30.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:49:57] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 32.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:50:31] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 28.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:51:00] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 43.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:51:44] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[10/17/26 19:51:45] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 7.000000  _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:51:52] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 8.000000  _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:52:01] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 14.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:52:16] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 16.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:52:33] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 23.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:52:57] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 27.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:53:25] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[10/17/26 19:53:26] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 31.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:53:58] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 5.000000  _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:54:04] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 10.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:54:14] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 15.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:54:30] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 18.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:54:49] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+                    INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 12.000000 _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:55:02] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+[10/17/26 19:55:03] INFO     HTTP Request: POST                 _client.py:1923
+                             https://generativelanguage.googlea                
+                             pis.com/v1beta/openai/chat/complet                
+                             ions "HTTP/1.1 400 Bad Request"                   
+[10/17/26 19:55:05] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[10/17/26 19:55:07] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[10/17/26 19:55:10] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 400 Bad                   
+                             Request"                                          
+[10/17/26 19:55:12] INFO     HTTP Request: POST                 _client.py:1923
+                             https://generativelanguage.googlea                
+                             pis.com/v1beta/openai/chat/complet                
+                             ions "HTTP/1.1 400 Bad Request"                   
+[10/17/26 19:55:15] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[10/17/26 19:55:17] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 429 Too                   
+                             Many Requests"                                    
+                    INFO     Retrying request in 1.000000  _base_client.py:1862
+                             seconds (retry 1 of 1)                            
+[10/17/26 19:55:18] INFO     HTTP Request: POST                 _client.py:1923
+                             https://api.groq.com/openai/v1/cha                
+                             t/completions "HTTP/1.1 200 OK"                   
+[evals] start 2026-10-17 19:48:48 local
+[evals] mode=LIVE runs=1 max_requests=100 primary=openai/gpt-oss-120b fallback=gemini-3.5-flash-lite
+[evals] run 1/1 (tenant eval-91b6f81-*)
+  [agent   ] A          verified_correct=True  outcome=root_cause_supported tools= 8 llm_req= 9  173.9s
+  [agent   ] B_after_A  verified_correct=True  outcome=root_cause_supported tools= 6 llm_req= 7  133.2s
+  [agent   ] B_alone    verified_correct=False outcome=None tools= 0 llm_req= 6   64.8s  ERROR OpenAIInvalidRequestError: Error code: 400 - [{'error': {'code': 400, 'message': 'Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature m
+  [agent   ] C          verified_correct=False outcome=None tools= 0 llm_req= 4    9.8s  ERROR OpenAIInvalidRequestError: Error code: 400 - [{'error': {'code': 400, 'message': 'Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature m
+  [agent   ] unknown    verified_correct=False outcome=None tools= 1 llm_req= 2    5.9s
+  [baseline] A          verified_correct=True  outcome=root_cause_supported tools=11 llm_req= 0    0.2s
+  [baseline] B_after_A  verified_correct=True  outcome=answered_from_memory tools= 5 llm_req= 0    0.1s
+  [baseline] B_alone    verified_correct=True  outcome=root_cause_supported tools=10 llm_req= 0    0.1s
+  [baseline] C          verified_correct=True  outcome=inconclusive tools= 9 llm_req= 0    0.1s
+  [baseline] unknown    verified_correct=True  outcome=unknown_entity tools= 0 llm_req= 0    0.0s
+[evals] LLM agent: 2/5 verified correct; deterministic baseline: 5/5; LLM requests used: 28; fallbacks: 0
+[evals] raw: D:\graph-hack\tracelens\evals\results\20261017T141849Z-live.json
+[evals] report: D:\graph-hack\tracelens\docs\EVALS.md
+[evals] end   2026-10-17 19:55:20 local
