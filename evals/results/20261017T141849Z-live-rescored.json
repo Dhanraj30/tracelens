@@ -11,7 +11,18 @@
     "models_seen": [
       "ChatOpenAI"
     ],
-    "rescored": true
+    "original_summary": {
+      "agent": {
+        "verified_correct": 2,
+        "total": 5
+      },
+      "baseline": {
+        "verified_correct": 5,
+        "total": 5
+      }
+    },
+    "rescored": true,
+    "rescore_note": "After live run 1 the scorer for the unknown-incident case was changed: originally it also required the guest's final text to contain 'unknown' / 'does not exist'; now it scores behaviour only (nothing recorded, no tool call beyond the resolution attempt), because the criterion is 'no tool calls beyond resolution', not wording. Fallback attempts are also recovered from error text. No agent logic or prompt changed."
   },
   "summary": {
     "agent": {

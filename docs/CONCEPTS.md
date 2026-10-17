@@ -50,6 +50,7 @@ Live run (17 Oct 2026, gpt-oss-120b): it picked 7 tools — get_incident, upstre
 - The core stays explainable: a judge asking "what happens after the temporal check fails?" gets an answer by pointing at one `if`, and the trace is a product feature rather than a debugging artifact.
 - The guest demonstrates the thing Track 01 asks for, *tool selection through MCP*, with a real framework and a real LLM, while the **verdict never depends on the LLM**: the graph checks decide what gets stored.
 - Quota is guarded: tests replay a recorded tool-call sequence through a fake chat model (no network); a live run requires `RUN_LIVE_LLM=1`; hard caps of 12 tool calls and 16 model calls.
+- Provider fallback restarts the whole run on the next provider (Groq `openai/gpt-oss-120b` → Gemini `gemini-3.5-flash-lite` through the native `langchain-google-genai` integration). It never continues another model's transcript; every restart is recorded as `restarted on <provider> after <error>`.
 
 If someone asks "isn't the engine just LangGraph by hand?": yes, intentionally, a nine-node graph with fixed edges is simpler to read as a function than as a framework object. And when a framework agent *is* useful, it plugs in from the outside through MCP without changing the core.
 
@@ -180,7 +181,9 @@ Every fallback hop is recorded in the report and shown in the UI ("LLM provider 
 
 **Metrics.** Verified-correct rate (the server's re-verification matches the truth, and for A the checkout deploy is not among the supported suspects), outcome match, ruled-out correct (and *how*: proposed-and-rejected vs never-proposed), tool calls, LLM requests, latency, fallbacks (Groq → Gemini), tool calls rejected by catalog validation, narratives rejected by the validator (baseline only; the guest writes no narrative), proposals rejected by the server verifier.
 
-**Two modes.** Offline replays recorded tool-call sequences through a fake chat model (Scenario A replays the real live run); it runs in pytest and exercises the MCP server, the validation and the verifier, not the LLM. Live (`RUN_LIVE_LLM=1`) calls the real models with a hard request budget, request spacing for free-tier limits, and one 429 retry before falling back.
+**Two modes.** Offline replays recorded tool-call sequences through a fake chat model (Scenario A replays the real live run); it runs in pytest and exercises the MCP server, the validation and the verifier, not the LLM. Live (`RUN_LIVE_LLM=1`) calls the real models with a hard request budget, request spacing for free-tier limits (default 12 s), and one 429 retry; if a provider still fails the guest restarts the run from scratch on the next one.
+
+**What live run 1 taught us (17 Oct 2026).** Guest 3/5 after re-scoring (A, B-after-A, unknown correct), baseline 5/5. The two failures were infrastructure: Groq's 8,000 tokens-per-minute limit produced 429s on most requests, and the old mid-run fallback to Gemini failed because Gemini 3.x rejects transcripts containing another model's function calls. Fixes: restart-from-scratch fallback, native Gemini integration (`langchain-google-genai`, which preserves thought signatures; verified on a Gemini-only run), and wider request spacing. The scorer for the unknown-ID case was also changed after the run (behaviour instead of wording) and `docs/EVALS.md` discloses the original and re-scored totals.
 
 **Why.** The guest's value claim is "an LLM can pick the tools and the graph still decides"; evals are how that claim is checked, and `docs/EVALS.md` carries the honest failure list. We never change agent logic or prompts to make evals pass.
 

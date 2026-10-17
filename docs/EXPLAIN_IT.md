@@ -104,6 +104,7 @@ Optional, OpenAI-compatible, free tier (Groq by default). It only writes the nar
 - "Verified correct" for the guest means the **server's** re-verification of what the guest proposed matches the truth; the guest never sees the truth. For A it also requires that the checkout deploy is not supported, and the report says whether the guest never proposed it or proposed it and got rejected.
 - Offline mode = replay through a fake model (no network): it proves the harness, the MCP server, validation and verification, not the LLM. Live mode = real models under a request budget and spacing. Be ready to say which numbers come from which mode.
 - The honest sentence: the deterministic engine is the product; the guest is the demonstration that an LLM can choose tools over MCP without being able to corrupt the verdict. The eval tables show both.
+- Live run 1 result and what it taught: guest 3/5 (re-scored from 2/5, disclosed in EVALS.md), baseline 5/5. Failures were Groq's 8k tokens-per-minute limit and a mid-run fallback to Gemini that Gemini 3.x rejects (thought signatures). Fixes: restart-from-scratch fallback, native Gemini integration, wider spacing. Say this plainly if asked "did the LLM agent always get it right?" — no, and here is why, and the verdict was never corrupted because the server verifies.
 
 ## What you must be able to explain (checklist)
 - [ ] How a guest agent's conclusion gets into memory, and why a wrong one cannot.

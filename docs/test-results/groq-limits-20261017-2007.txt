@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+x-ratelimit-limit-requests: 1000
+x-ratelimit-limit-tokens: 8000
+x-ratelimit-remaining-requests: 982
+x-ratelimit-remaining-tokens: 7927
+x-ratelimit-reset-requests: 25m55.199s
+x-ratelimit-reset-tokens: 547ms

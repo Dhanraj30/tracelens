@@ -13,7 +13,8 @@ Investigation node so the dashboard's history view can show it.
 Quota guards:
   * pytest uses a fake chat model that replays a recorded tool-call sequence (no network).
   * A live run happens only with RUN_LIVE_LLM=1 (`python -m agents.langgraph_guest.agent inc-1042`).
-  * Groq is primary; Gemini is tried by ModelFallbackMiddleware when Groq fails (404/429/5xx).
+  * Groq is primary; if it fails (404/429/5xx) the WHOLE run restarts from scratch on Gemini. We never continue
+    another model's transcript (Gemini 3.x rejects foreign function calls: thought_signature). Restarts are recorded.
   * Hard caps: 12 tool calls, 16 model calls, recursion limit 60.
 
 Run:  RUN_LIVE_LLM=1 python -m agents.langgraph_guest.agent inc-1042
@@ -71,9 +72,22 @@ def build_models() -> tuple[Any, list[Any]]:
                          max_tokens=4000, timeout=float(env.get("LLM_TIMEOUT_S", "30")), max_retries=1, extra_body={"reasoning_effort": "low"})
     fallbacks: list[Any] = []
     if env.get("LLM_FALLBACK_MODEL") and env.get("LLM_FALLBACK_API_KEY"):
-        fallbacks.append(ChatOpenAI(model=env["LLM_FALLBACK_MODEL"], api_key=env["LLM_FALLBACK_API_KEY"], base_url=env["LLM_FALLBACK_BASE_URL"],
-                                    temperature=0.1, max_tokens=4000, timeout=float(env.get("LLM_TIMEOUT_S", "30")), max_retries=1,
-                                    extra_body={"reasoning_effort": "low"}))
+        if "generativelanguage.googleapis.com" in (env.get("LLM_FALLBACK_BASE_URL") or ""):
+            # Gemini 3.x function calling needs its thought signatures echoed back. The OpenAI-compatible path through
+            # ChatOpenAI drops them (verified 17 Oct 2026: HTTP 400 "missing thought_signature" even on a Gemini-only run),
+            # so the fallback uses LangChain's native integration, which preserves them.
+            from langchain_google_genai import ChatGoogleGenerativeAI
+
+            kwargs: dict[str, Any] = dict(model=env["LLM_FALLBACK_MODEL"], google_api_key=env["LLM_FALLBACK_API_KEY"], temperature=0.1,
+                                          max_output_tokens=4000, timeout=float(env.get("LLM_TIMEOUT_S", "30")), max_retries=1)
+            try:
+                fallbacks.append(ChatGoogleGenerativeAI(**kwargs, thinking_level="low"))
+            except Exception:  # noqa: BLE001 - older integration without thinking_level
+                fallbacks.append(ChatGoogleGenerativeAI(**kwargs))
+        else:
+            fallbacks.append(ChatOpenAI(model=env["LLM_FALLBACK_MODEL"], api_key=env["LLM_FALLBACK_API_KEY"], base_url=env["LLM_FALLBACK_BASE_URL"],
+                                        temperature=0.1, max_tokens=4000, timeout=float(env.get("LLM_TIMEOUT_S", "30")), max_retries=1,
+                                        extra_body={"reasoning_effort": "low"}))
     return primary, fallbacks
 
 
@@ -98,29 +112,61 @@ async def run_guest(incident_id: str, *, server: Any = None, model: Any = None, 
     Returns {"tool_calls": [...in order...], "recorded": <record_investigation result>, "final": str, "model_used": str, "duration_s": float}.
     """
     from langchain.agents import create_agent
-    from langchain.agents.middleware import ModelCallLimitMiddleware, ModelFallbackMiddleware, ToolCallLimitMiddleware
+    from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
     from langchain.mcp import MCPAdapter
+    from langchain_core.callbacks import BaseCallbackHandler
     from langchain_core.messages import AIMessage, ToolMessage
+
+    class _AttemptCounter(BaseCallbackHandler):
+        """Counts tool calls completed in one attempt, so a restart can say how far the failed provider got."""
+
+        def __init__(self) -> None:
+            self.tool_calls = 0
+
+        def on_tool_start(self, serialized, input_str, **kwargs):  # noqa: ANN001
+            self.tool_calls += 1
 
     target = server if server is not None else Path(__file__).resolve().parent / "server_launcher.py"
     t0 = time.time()
+    restarts: list[dict[str, Any]] = []
+    trace_notes: list[dict[str, Any]] = []
     async with MCPAdapter(target) as adapter:  # keep the session open for the whole run: the server traces it as one session
         all_tools = await adapter.list_tools()
         tools = [t for t in all_tools if t.name not in EXCLUDED_TOOLS]
         log(f"[guest] MCP tools offered to the model: {', '.join(t.name for t in tools)}  (excluded: {', '.join(sorted(EXCLUDED_TOOLS))})")
         if model is None:
             model, fallbacks = build_models()
-        middleware: list[Any] = [
-            ToolCallLimitMiddleware(run_limit=MAX_TOOL_CALLS, exit_behavior="continue"),
-            ModelCallLimitMiddleware(run_limit=MAX_MODEL_CALLS, exit_behavior="end"),
-        ]
-        if fallbacks:
-            middleware.append(ModelFallbackMiddleware(*fallbacks))
-        agent = create_agent(model, tools, system_prompt=SYSTEM_PROMPT, middleware=middleware)
-        result = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": f"Investigate incident {incident_id}. Gather evidence with the tools, then record your conclusion."}]},
-            config={"recursion_limit": 60, **({"callbacks": callbacks} if callbacks else {})},
-        )
+        providers = [model] + list(fallbacks or [])
+        result = None
+        last_exc: BaseException | None = None
+        for i, provider in enumerate(providers):
+            # Provider fallback = RESTART THE WHOLE RUN on the next provider. We never continue another model's transcript:
+            # Gemini 3.x rejects function calls it did not make (thought_signature), and mixing providers mid-run is unsound anyway.
+            middleware: list[Any] = [
+                ToolCallLimitMiddleware(run_limit=MAX_TOOL_CALLS, exit_behavior="continue"),
+                ModelCallLimitMiddleware(run_limit=MAX_MODEL_CALLS, exit_behavior="end"),
+            ]
+            agent = create_agent(provider, tools, system_prompt=SYSTEM_PROMPT, middleware=middleware)
+            counter = _AttemptCounter()
+            try:
+                result = await agent.ainvoke(
+                    {"messages": [{"role": "user", "content": f"Investigate incident {incident_id}. Gather evidence with the tools, then record your conclusion."}]},
+                    config={"recursion_limit": 60, "callbacks": [counter] + list(callbacks or [])},
+                )
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if type(exc).__name__ == "BudgetExceeded" or i == len(providers) - 1:
+                    raise
+                nxt = providers[i + 1]
+                nxt_label = getattr(nxt, "model_name", None) or getattr(nxt, "model", None) or getattr(nxt, "_llm_type", "fallback")
+                cur_label = getattr(provider, "model_name", None) or getattr(provider, "model", None) or getattr(provider, "_llm_type", "primary")
+                note = f"restarted on {nxt_label} after {cur_label} failed: {type(exc).__name__}: {str(exc)[:160]}"
+                restarts.append({"note": note, "failed_provider": str(cur_label), "next_provider": str(nxt_label), "calls_before_restart": counter.tool_calls, "error": str(exc)[:400]})
+                trace_notes.append({"tool": "restart", "note": note})
+                log(f"[guest] {note} (the failed attempt had completed {counter.tool_calls} tool call(s); starting over from scratch)")
+        if result is None:  # pragma: no cover - defensive; the loop either breaks or raises
+            raise last_exc or RuntimeError("no provider produced a result")
 
     # ---- read the transcript: tool calls in order, with the model's stated reasons ----
     calls: list[dict[str, Any]] = []
@@ -146,12 +192,14 @@ async def run_guest(incident_id: str, *, server: Any = None, model: Any = None, 
                 if entry["tool"] == "record_investigation" and isinstance(d, dict):
                     recorded = d
     final = result["messages"][-1].content if result["messages"] else ""
-    if not isinstance(final, str):
-        final = json.dumps(final)[:1000]
+    if not isinstance(final, str):  # Gemini returns content blocks; keep the text, drop signatures/thoughts
+        final = " ".join(b.get("text", "") for b in final if isinstance(b, dict) and b.get("type") == "text").strip() or json.dumps(final)[:1000]
     out = {"incident_id": incident_id, "tool_calls": calls, "recorded": recorded, "final": final, "model_used": model_used,
-           "duration_s": round(time.time() - t0, 1), "at": int(time.time())}
+           "duration_s": round(time.time() - t0, 1), "at": int(time.time()), "restarts": restarts, "trace_notes": trace_notes}
 
     log("")
+    for r in restarts:
+        log(f" !! {r['note']}")
     for c in calls:
         log(f"{c['n']:>2}. {c['tool']}({', '.join(f'{k}=[{len(v)}]' if isinstance(v, list) else f'{k}={v}' for k, v in c['args'].items())})")
         if c["reason"]:

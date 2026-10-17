@@ -1,0 +1,16 @@
+  from langchain.mcp import MCPAdapter
+fallback class: ChatGoogleGenerativeAI | model: gemini-3.5-flash-lite
+[guest] MCP tools offered to the model: get_incident, upstream_dependencies, deployments_in_window, error_timeline, healthy_siblings, similar_incidents, path_between, critical_services, recall, record_investigation  (excluded: investigate, list_catalog, record_action)
+ 1. get_incident(incident_id=inc-9999)
+      model's stated reason (unverified): Get details of the incident to find affected service and timestamp
+      -> unknown incident: inc-9999
+ 2. critical_services(limit=10)
+      model's stated reason (unverified): Find critical services to understand the environment if incident ID is not found directly
+      -> top by PageRank: kafka
+ 3. record_investigation(summary=The incident ID inc-9999 does not exist in the database. Consequently, we could not gather upstream dependencies, error timelines, or deployments to determine a root cause. The investigation is inconclusive and no suspects are recorded., outcome=inconclusive, suspects=[0], incident_id=inc-9999, agent=langgraph)
+      model's stated reason (unverified): Incident inc-9999 could not be found in the system; therefore, no investigation could be performed.
+      -> incident 'inc-9999' does not exist in the graph
+[server] claimed=None verified=None |  | stored as None by None
+[guest] model=gemini-3.5-flash-lite tool_calls=3 duration=9.9s
+[{"type": "text", "text": "The incident ID inc-9999 could not be found in the database. As a result, no dependency graph or error telemetry was available for analysis. The investigation has been marked inconclusive with no suspects.", "extras": {"signature": "EmAKXgFpFH0T40gETv6nJXU1g4kNIHn5bjkZwpp/JnCR3HxskkIobq0T5A/cJPD2/HJ8TPkxSomFWHk7yDjyiA00Wplv1o5fT5sPs4S7ixPSjNxa97rtE7p8cnU7E58oE68="}}]
+RESULT: tool_calls 3 | recorded True | model_used gemini-3.5-flash-lite | restarts [] | duration 9.9 s
