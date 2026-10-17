@@ -30,6 +30,17 @@ def test_inconclusive_outcome_cannot_be_narrated_as_supported():
     assert ok
 
 
+def test_rejects_narrative_that_contradicts_the_verdict():
+    v = NarrativeValidator(KNOWN, EVIDENCE | {"dep-chk-1405"}, traversals_empty=False, outcome="root_cause_supported",
+                           root_cause_id="dep-pay-1352", rejected_ids={"dep-chk-1405"})
+    ok, problems = v.validate("The best-supported explanation is dep-chk-1405 on checkout.")
+    assert not ok and any("ruled-out" in p for p in problems) and any("never names" in p for p in problems)
+    ok, problems = v.validate("dep-pay-1352 on payments-api is the best-supported explanation; dep-chk-1405 was ruled out by timing.")
+    assert ok, problems
+    ok, problems = v.validate("dep-pay-1352 is the proven root cause.")
+    assert not ok and any("over-claims" in p for p in problems)
+
+
 def test_rejects_overclaim_and_impact_without_traversal():
     v = NarrativeValidator(KNOWN, EVIDENCE, traversals_empty=True)
     ok, problems = v.validate("This is the proven cause; it impacted checkout.")

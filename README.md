@@ -1,6 +1,6 @@
 # TraceLens
 
-**Symptom → root cause, proven by graph traversal on FalkorDB.**
+**Symptom → root cause, traced and checked in the FalkorDB graph.**
 
 > *TraceLens doesn't just tell you what's broken — it walks the graph to prove why, shows you the suspects it ruled out, and remembers the answer next time.*
 
@@ -55,7 +55,7 @@ cd frontend && npm install && npm run dev            # http://localhost:5173 (pr
 ### Tests (against a real FalkorDB container, separate graph key `tracelens_test`)
 
 ```bash
-PYTHONIOENCODING=utf-8 python -m pytest -q           # 37 tests: one per tool, scenario ground truth A–D, validator, unknown-entity guards,
+PYTHONIOENCODING=utf-8 python -m pytest -q           # 43 tests: one per tool, scenario ground truth A–D, validator, unknown-entity guards,
                                                      # MCP guards, cross-agent handoff, guest fake-model replay, tenant isolation
 pip install -r agents/langgraph_guest/requirements.txt   # optional: the LangGraph guest (its tests skip if not installed)
 ```

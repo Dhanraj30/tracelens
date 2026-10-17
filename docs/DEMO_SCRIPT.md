@@ -1,43 +1,44 @@
-# TraceLens — demo video script (2:30 target, max 3:00)
+# TraceLens — demo video script (target 2:45, hard max 3:00)
 
-Record at 1920×1080. Browser zoom 100%. Dark theme is built in. Before recording: `docker compose up -d falkordb`,
-seed, start API + Vite, open http://localhost:5173, click **reset demo** (clears memory so Scenario A is a full run).
+Record at 1920×1080, browser zoom 100%. Before recording:
 
-Keep the cursor slow. Say the bold lines; the rest is stage direction.
+```
+docker compose up -d falkordb && python -m backend.seed
+uvicorn backend.api.main:app --port 8000 ; cd frontend && npm run dev
+# pre-bake the guest run so the video never waits on an LLM (about 2 minutes live):
+RUN_LIVE_LLM=1 python -m agents.langgraph_guest.agent inc-1042      # or the quota-free replay:
+python -m evals.e2e_guest --tenant demo --incident inc-1042          # provenance mcp:langgraph-replay
+python -m evals.e2e_guest --tenant demo --incident inc-1042 --naive  # a bad proposal the server rejects
+```
+
+Open `http://localhost:5173/?tenant=demo`. Keep the cursor slow. Say the bold lines.
 
 | t | Beat | On screen | Say |
 |---|---|---|---|
-| 0:00 | Problem (10 s) | Idle dashboard, dependency graph visible | **"When checkout breaks, the first thing everyone looks at is the last deploy to checkout. It is usually wrong. TraceLens walks the dependency graph in FalkorDB to find the upstream cause — and shows you the suspects it ruled out."** |
-| 0:10 | Pick Scenario A (10 s) | Select `inc-1042 — Checkout requests are failing`, press **Investigate** | **"Incident 1042: checkout error rate 38%. Deterministic mode, no LLM needed."** |
-| 0:20 | Traversal animates (40 s) | Timeline fills step by step; graph lights up: checkout → 9 upstream services; three deploy chips appear; then two get struck through | **"Every step is a real Cypher query — here's `upstream_dependencies`, a variable-length traversal; click Show Cypher."** (open it on step 2) **"Three deployments in the window. The checkout deploy at 14:05 is the obvious suspect — but checkout's errors started at 14:01. The graph says the symptom predates the change, so it's ruled out. Cart's deploy is ruled out too: the earliest errors sit at payments-api, and cart never reaches payments-api."** |
-| 1:00 | Root cause path + history + runbook (30 s) | Switch to **Root cause & remediation**; red path checkout → payments-api; 5/5 checks; similar incident inc-0877 with `ErrorSignature` / `Service` / `CodeChange file` chips; runbook steps | **"Best-supported explanation: the payments-api deploy at 13:52 that cut the Postgres pool from 50 to 5. Five of five graph checks — including a common-cause test: fraud-check shares the same database and is healthy, so the database isn't the problem. And it found incident 0877 three weeks ago through a shared ErrorSignature node — same service, same file — resolved by a rollback and this runbook."** |
-| 1:30 | Approve (10 s) | Click **Approve rollback (simulated)** → status executed | **"The remediation is tied to that exact deployment and runbook. It's simulated, and it needs a human click. That click is written to the graph as an Action."** |
-| 1:40 | Scenario B from memory (20 s) | Select `inc-1043 — Refunds failing`, Investigate; violet "Answered from memory — learned …" banner; 5 tool calls | **"Now refunds fail. TraceLens recalls the investigation it just wrote, checks refunds-worker depends on payments-api and that its errors started after the deploy — and answers in five tool calls instead of eleven, with 'operator confirmed'. That memory is graph nodes the agent wrote itself."** |
-| 2:00 | Scenario C honest (15 s) | Select `inc-1044 — Search results are empty`, Investigate; amber "Inconclusive"; the checked list + missing data | **"And when the evidence isn't there, it says so. Search depends on an external vendor with no deployments or error data modeled. Inconclusive — here's exactly what it checked and what data would resolve it."** |
-| 2:15 | FalkorDB Browser (10 s) | Tab to http://localhost:3000, run `MATCH (i:Investigation)-[:CONSIDERED]->(h:Hypothesis)-[r]->(n) RETURN i,h,r,n` | **"This is the real graph: investigations, hypotheses — including the rejected ones — and the evidence edges that support or reject them."** |
-| 2:25 | Close (5 s) | Back to dashboard | **"TraceLens: symptom to root cause, proven by traversal, remembered for next time. Built on FalkorDB."** |
+| 0:00 | Problem (10 s) | Idle dashboard, dependency graph | **"When checkout breaks, everyone looks at the last deploy to checkout. It's usually wrong. TraceLens walks the dependency graph in FalkorDB to find the upstream cause, and shows the suspects it ruled out."** |
+| 0:10 | Scenario A (35 s) | Select `inc-1042`, Investigate; traversal animates; open "Show Cypher" on step 2; switch to Hypotheses | **"Every step is a real Cypher query. Three deployments in the window. The checkout deploy at 14:05 is the obvious suspect, but checkout's errors began at 14:01, so it's ruled out. Cart never reaches payments-api, ruled out. The payments-api deploy that cut the DB pool from 50 to 5 passes all five checks, including the common-cause test: fraud-check shares the same database and is healthy."** |
+| 0:45 | Guest agent picks tools (25 s) | Past investigations tab → entry `mcp:langgraph` (or `-replay`) → expand: tool order, italic "model's stated reason (unverified)", green `server_verification` step | **"An outside LangGraph agent did the same job over MCP. It chose these seven tools itself; its reasons are recorded but marked unverified. The server re-ran every graph check on every deployment on the path before storing anything."** (If you used the replay, say so: *"this one is a replayed recording of the live run."*) |
+| 1:10 | Server rejects a bad proposal (15 s) | Same tab → the naive guest entry: `REJECTED` dep-chk-1405 with `temporal_precedence`, and `checked by server, not proposed` on the real cause | **"Here a guest blamed the checkout deploy. The server stored it as rejected with the failed check. A guest can contribute to memory; it can't corrupt it."** |
+| 1:25 | Memory handoff (20 s) | Select `inc-1043 — Refunds failing`, Investigate; violet banner "learned by mcp:langgraph" | **"Refunds fail. My engine recalls the guest's verified investigation, re-checks refunds-worker's timeline, and answers in five tool calls instead of eleven. The memory is graph nodes, written by one agent, read by another."** |
+| 1:45 | Approval → learned fix (25 s) | Back on `inc-1042`: click **Approve rollback (simulated)**; then select `inc-1051 — a week later`, Investigate; similar-incidents card shows **🧠 learned by TraceLens** on inc-1042 | **"The remediation is tied to that deployment and runbook. Approving it, simulated, writes a Resolution to the graph. A week later the same signature appears, and the history check cites the fix it learned from my click."** |
+| 2:10 | Tenant isolation (10 s) | Change the URL to `?tenant=other`, run `inc-1043`: no memory banner, header badge `tenant: other` | **"Each tenant is its own FalkorDB graph. Memory never crosses."** |
+| 2:20 | Scenario C, honest (10 s) | `inc-1044`: amber "Inconclusive", checked list, missing data | **"And when the evidence isn't there, it says so, and what data would resolve it."** |
+| 2:30 | FalkorDB Browser (15 s) | `http://localhost:3000`, graph `tracelens:demo`; run the query below; **delete one DEPENDS_ON edge** in the browser, re-run inc-1042 in the dashboard | **"This is the real graph. If I delete the checkout → payments-api edge here… the path check fails and TraceLens no longer blames payments-api. Remove FalkorDB and nothing works."** |
+| 2:45 | Close (5 s) | Dashboard | **"TraceLens: symptom to root cause, traced through the graph, checked before it's trusted, verified before it's remembered. Built on FalkorDB."** |
 
-## Optional beats if you have 30 s to spare (Track 02 / MCP)
-
-- **Guest handoff (15 s):** before recording, run `RUN_LIVE_LLM=1 python -m agents.langgraph_guest.agent inc-1042` (or the quota-free `python -m backend.mcp_client_demo inc-1042`). Then in the dashboard open **Past investigations**: the entry reads `mcp:langgraph · server-verified`, and its trace shows the model's stated reasons in italics. Run `inc-1043`: the banner says **learned by mcp:langgraph**. Say: *"An outside LangGraph agent chose the tools over MCP; the server re-checked its answer before storing it; my engine reused it."*
-- **Learning from approval (15 s):** after approving A's rollback, pick `inc-1051 — Checkout failing again after pool change`. The similar-incidents card shows **🧠 learned by TraceLens** on inc-1042. Say: *"A week later the same signature; the fix it learned from my click is now history it can cite."*
-
-## Handy URLs for recording
-
-- Full replay of A: `http://localhost:5173/?incident=inc-1042`
-- Jump to the verdict: `http://localhost:5173/?incident=inc-1042&instant=1`
-- Hypotheses tab: `http://localhost:5173/?incident=inc-1042&instant=1&tab=hypotheses`
-- Pause at a step: `http://localhost:5173/?incident=inc-1042&step=5`
-
-## FalkorDB Browser queries worth showing
+## FalkorDB Browser queries
 
 ```cypher
-// the dependency graph
-MATCH (a:Service)-[d:DEPENDS_ON]->(b:Service) RETURN a, d, b
-
-// what the agent learned
+// the memory: investigations, hypotheses (incl. rejected), evidence edges
 MATCH (inv:Investigation)-[:CONSIDERED]->(h:Hypothesis)-[r]->(n) RETURN inv, h, r, n
 
-// why checkout's deploy was rejected
-MATCH (h:Hypothesis)-[r:REJECTED_BY]->(n) WHERE h.label CONTAINS 'dep-chk-1405' RETURN h, r, n
+// the edge-delete trick (then re-run inc-1042 in the dashboard; restore with "reset demo")
+MATCH (:Service {name:'checkout'})-[e:DEPENDS_ON]->(:Service {name:'payments-api'}) DELETE e
 ```
+
+After the trick, click **reset demo** (or re-run `python -m backend.seed`) to restore the edge.
+
+## Handy URLs
+
+- Auto-run with replay: `http://localhost:5173/?tenant=demo&incident=inc-1042`
+- Jump to verdict: `…&instant=1`; hypotheses tab: `…&tab=hypotheses`; history: `…&tab=history`; pause mid-replay: `…&step=5`

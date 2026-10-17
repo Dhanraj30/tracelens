@@ -83,7 +83,7 @@ Optional, OpenAI-compatible, free tier (Groq by default). It only writes the nar
 ### LangGraph guest (LLM tool selection over MCP)
 - Lives in `agents/langgraph_guest/`; the core never imports LangChain. It uses `langchain.agents.create_agent` (LangGraph runtime) and `langchain.mcp.MCPAdapter`.
 - It sees 10 tools (evidence + `record_investigation`), never `investigate`, `record_action`, `list_catalog`, never Cypher.
-- Caps: 12 tool calls, 16 model calls (middleware), Groq → Gemini fallback (middleware).
+- Caps: 12 tool calls, 16 model calls (middleware). Provider fallback restarts the whole run on Gemini (native integration); it never continues another model's transcript.
 - Live run on 17 Oct: gpt-oss-120b chose get_incident → upstream_dependencies → recall → deployments_in_window → error_timeline → healthy_siblings → record_investigation; it skipped path_between and similar_incidents. The server still ran all five checks and verified `dep-pay-1352` 5/5. **The LLM chose the path; the graph decided the verdict.**
 - Tests replay that sequence through a fake chat model (no network); a second test has a naive guest blame `dep-chk-1405` and proves it is stored as rejected.
 

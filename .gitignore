@@ -8,3 +8,4 @@ frontend/dist/
 backend/static/
 .DS_Store
 e2e/test-output/
+evals/results/*-offline.json

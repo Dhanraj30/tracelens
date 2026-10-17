@@ -10,7 +10,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 ID_TOKEN = re.compile(r"\b(?:dep|inc|cc|err|rb|res|inv|act|hyp)-[A-Za-z0-9][A-Za-z0-9\-_.]*", re.IGNORECASE)
-FORBIDDEN_PHRASES = ("proven cause", "proves that", "proved that", "definitively caused", "root cause is proven")
+OVERCLAIM = re.compile(r"\bprov(?:en|es|e|ed)\b|\bproof\b|\bdefinitively\b|\bcertainly caused\b")
+CLAIM_WORDS = re.compile(r"best[- ]supported|\bsupported\b|\bcause[sd]?\b|\bculprit\b|\bresponsible\b")
+EXCUSE_WORDS = re.compile(r"ruled out|rejected|not the cause|cannot be the cause|excluded|eliminated")
 
 
 def fmt_ts(ts: int | float | None) -> str:
@@ -28,12 +30,15 @@ def fmt_date(ts: int | float | None) -> str:
 class NarrativeValidator:
     """Rejects narratives that name entities absent from the evidence, or that over-claim."""
 
-    def __init__(self, known_services: set[str], evidence_ids: set[str], traversals_empty: bool, outcome: str | None = None):
+    def __init__(self, known_services: set[str], evidence_ids: set[str], traversals_empty: bool, outcome: str | None = None,
+                 root_cause_id: str | None = None, rejected_ids: set[str] | None = None):
         self.known_services = {s.lower() for s in known_services}
         self.evidence_ids = {e.lower() for e in evidence_ids}
         self.evidence_services = {e.lower() for e in evidence_ids if e.lower() in self.known_services}
         self.traversals_empty = traversals_empty
         self.outcome = outcome
+        self.root_cause_id = (root_cause_id or "").lower() or None
+        self.rejected_ids = {r.lower() for r in (rejected_ids or set())}
 
     def validate(self, text: str) -> tuple[bool, list[str]]:
         problems: list[str] = []
@@ -44,11 +49,18 @@ class NarrativeValidator:
         for svc in self.known_services:
             if re.search(rf"(?<![\w-]){re.escape(svc)}(?![\w-])", low) and svc not in self.evidence_services:
                 problems.append(f"names a service not in evidence: {svc}")
-        for phrase in FORBIDDEN_PHRASES:
-            if phrase in low:
-                problems.append(f"over-claims: '{phrase}'")
+        m = OVERCLAIM.search(low)
+        if m:
+            problems.append(f"over-claims: '{m.group(0)}'")
         if self.traversals_empty and re.search(r"\b(impact(s|ed)?|affect(s|ed)?|cascad\w+)\b", low):
             problems.append("claims impact although dependency traversals returned nothing")
+        # attribution: the narrative must agree with the verdict, not merely mention known entities
+        if self.outcome == "root_cause_supported" and self.root_cause_id and self.root_cause_id not in low:
+            problems.append(f"outcome is root_cause_supported but the narrative never names the supported deployment {self.root_cause_id}")
+        for sentence in re.split(r"(?<=[.!?])\s+", low):
+            for rid in self.rejected_ids:
+                if rid in sentence and CLAIM_WORDS.search(sentence) and not EXCUSE_WORDS.search(sentence):
+                    problems.append(f"presents the ruled-out deployment {rid} as a cause: '{sentence[:120]}'")
         if self.outcome == "inconclusive":
             # an inconclusive investigation must say so, and must not promote any hypothesis to "supported"
             if "inconclusive" not in low:

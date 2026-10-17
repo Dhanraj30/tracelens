@@ -19,6 +19,7 @@ Confidence = passed / total checks — a share, NOT a probability. We never say 
 from __future__ import annotations
 
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -89,7 +90,7 @@ class Investigator:
 
     # ------------------------------------------------------------------ entry point
     def run(self, incident_id: str | None = None, service: str | None = None) -> dict[str, Any]:
-        inv_id = f"inv-{int(time.time() * 1000)}"
+        inv_id = f"inv-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"  # ms timestamp for ordering + random suffix (no collisions under concurrency)
         now = int(time.time())
         self.report = {
             "id": inv_id, "at": now, "mode": self.mode, "outcome": None, "incident": None, "window": None,
@@ -495,7 +496,10 @@ class Investigator:
         rep["llm_model"] = model
         known = {r[0] for r in self.graph.read("MATCH (s:Service) RETURN s.name")[0]}
         evidence_ids = set(_collect_ids(evidence)) | {rep["incident"]["id"], rep["incident"]["service"]}
-        ok, problems = NarrativeValidator(known, evidence_ids, traversals_empty=not rep["graph_highlights"].get("visited"), outcome=rep["outcome"]).validate(text)
+        rejected_ids = {h["suspect"] for h in rep["hypotheses"] if h["status"] == "rejected" and h.get("suspect")}
+        root_id = (rep.get("root_cause") or {}).get("deployment_id")
+        ok, problems = NarrativeValidator(known, evidence_ids, traversals_empty=not rep["graph_highlights"].get("visited"), outcome=rep["outcome"],
+                                          root_cause_id=root_id, rejected_ids=rejected_ids).validate(text)
         if ok:
             rep["narrative"], rep["narrative_source"] = text, "llm"
         else:
@@ -516,11 +520,15 @@ def verify_candidates(graph: Graph, incident_id: str, suspects: list[str]) -> di
     Nothing is written. Returns per-suspect status/score/checks, the overall confidence of the best
     supported suspect, and the remediation the engine would propose for it.
     """
-    suspects = [validate_id(s, "suspect") for s in suspects][:8]
+    if len(suspects) > 8:
+        raise ToolError(f"too many suspects ({len(suspects)}); propose at most 8", kind="validation")
+    suspects = [validate_id(s, "suspect") for s in suspects]
     inv = Investigator(graph, verify_only=suspects)
     rep = inv.run(incident_id=incident_id)
     if rep["outcome"] == "unknown_entity":
         raise ToolError(rep.get("error", "unknown entity"), kind="unresolved", unresolved=[incident_id])
+    if rep.get("error"):  # the verification itself was cut short (timeout, budget): never store a partial verdict as verified
+        raise ToolError(f"verification aborted: {rep['error']}", kind="query")
     hyps = [{"suspect": h["suspect"], "status": h["status"], "score": h["score"], "label": h["label"], "proposed": bool(h["details"].get("proposed")),
              "checks": [{"name": c["name"], "passed": c["passed"], "detail": c["detail"], "evidence_ids": c["evidence_ids"]} for c in h["checks"] if c["passed"] is not None]}
             for h in rep["hypotheses"] if h["kind"] == "deployment"]

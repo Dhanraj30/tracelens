@@ -103,7 +103,7 @@ export default function App() {
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/20 text-sky-300">◎</span>
           <div>
             <div className="text-[15px] font-bold leading-tight">TraceLens</div>
-            <div className="hidden text-[10.5px] leading-tight text-slate-400 xl:block">symptom → root cause, proven by graph traversal on FalkorDB</div>
+            <div className="hidden text-[10.5px] leading-tight text-slate-400 xl:block">symptom → root cause, traced and checked in the FalkorDB graph</div>
           </div>
         </div>
         <div className="hidden h-6 w-px bg-[var(--border)] md:block" />

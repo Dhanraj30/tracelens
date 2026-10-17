@@ -20,7 +20,7 @@ Plain-language notes on the AI/agent ideas behind TraceLens. Each section says: 
 
 **Do we use it?** Yes, and it is the backbone. `backend/tools/catalog.py` defines 11 tools (`get_incident`, `upstream_dependencies`, `deployments_in_window`, `error_timeline`, `healthy_siblings`, `similar_incidents`, `path_between`, `critical_services`, `recall`, `record_investigation`, `record_action`). Each tool owns one person-written Cypher query. Arguments are typed and validated; service and incident names are resolved against the graph before any query runs; reads go through `GRAPH.RO_QUERY`.
 
-**Why.** The agent never writes Cypher. That is the safety and explainability guarantee: there is no way for an LLM to inject a query, and every query in `docs/QUERIES.md` is exactly what ran. The same catalog is exposed over MCP (section 8), so the *same* guarantees hold for any outside agent.
+**Why.** The agent never writes Cypher. That is the safety and explainability guarantee: there is no way for an LLM to inject a query, and every query the agent reasons with is in `docs/QUERIES.md`, generated from the catalog, exactly as it ran. (A handful of fixed, parameterized read-only lookups live outside the catalog: the API's graph/incident views in `backend/api/main.py`, entity resolution and a runbook lookup in `backend/agent/engine.py`. None takes model text.) The same catalog is exposed over MCP (section 8), so the *same* guarantees hold for any outside agent.
 
 ---
 
@@ -157,7 +157,7 @@ Every fallback hop is recorded in the report and shown in the UI ("LLM provider 
 
 **What it is.** Fixed demo data with known answers, so behaviour is testable.
 
-**How.** `backend/seed.py` builds the same graph every time (fixed IDs, fixed timestamps relative to one base day, idempotent via `MERGE`). The expected outcomes live **only** in `tests/scenarios.yaml`; the agent never reads them. `pytest` runs against a real FalkorDB container (29 tests).
+**How.** `backend/seed.py` builds the same graph every time (fixed IDs, fixed timestamps relative to one base day, idempotent via `MERGE`). The expected outcomes live **only** in `tests/scenarios.yaml`; the agent never reads them. `pytest` runs against a real FalkorDB container (43 tests, plus 6 Playwright e2e specs).
 
 **Why.** "Do not fake queries, invent evidence, or hardcode root causes" is a rule of the brief and of good engineering. If the engine reaches the ground truth it must have done so through queries.
 

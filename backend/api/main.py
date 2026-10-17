@@ -19,12 +19,14 @@ from ..config import settings
 from ..db import Graph, get_graph
 from ..seed import clear_memory, counts, reset_and_seed, seed_if_empty
 from ..tools import REGISTRY, ToolContext, ToolError
+from ..tools.base import validate_id
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
-# In-memory store of full reports (incl. traces) for this process. The durable memory lives in the graph.
-REPORTS: dict[str, dict[str, Any]] = {}
-ACTIONS: dict[str, str] = {}  # action_id -> investigation_id
+# In-memory store of full reports (incl. traces) for this process, keyed by (graph key, id) so tenants never see
+# each other's reports. The durable memory lives in the graph.
+REPORTS: dict[tuple[str, str], dict[str, Any]] = {}
+ACTIONS: dict[tuple[str, str], str] = {}  # (graph, action_id) -> investigation_id
 
 
 @asynccontextmanager
@@ -103,9 +105,9 @@ def investigate(req: InvestigateRequest, g: Graph = Depends(tenant_graph)) -> di
     if not g.ping():
         raise HTTPException(status_code=503, detail="FalkorDB unreachable")
     report = Investigator(g, mode=req.mode).run(incident_id=req.incident_id, service=req.service)
-    REPORTS[report["id"]] = report
+    REPORTS[(g.name, report["id"])] = report
     if report.get("action"):
-        ACTIONS[report["action"]["id"]] = report["id"]
+        ACTIONS[(g.name, report["action"]["id"])] = report["id"]
     return report
 
 
@@ -132,8 +134,12 @@ def list_investigations(g: Graph = Depends(tenant_graph)) -> list[dict[str, Any]
 @app.get("/api/investigations/{investigation_id}")
 def get_investigation(investigation_id: str, g: Graph = Depends(tenant_graph)) -> dict[str, Any]:
     """Full in-process report when available; otherwise the durable record from the graph (agent, trace, hypotheses, evidence edges)."""
-    if investigation_id in REPORTS:
-        return REPORTS[investigation_id]
+    try:
+        investigation_id = validate_id(investigation_id, "investigation_id")
+    except ToolError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if (g.name, investigation_id) in REPORTS:
+        return REPORTS[(g.name, investigation_id)]
     rows, _ = g.read(
         "MATCH (inv:Investigation {id: $id})-[:INVESTIGATED]->(i:Incident)-[:AFFECTS]->(s:Service) OPTIONAL MATCH (inv)-[:PROPOSED]->(a:Action) "
         "RETURN inv.id, inv.at, inv.mode, inv.outcome, inv.tool_calls, inv.confidence, coalesce(inv.agent,'engine'), coalesce(inv.verified,true), inv.trace, "
@@ -177,18 +183,21 @@ def approve_action(action_id: str, g: Graph = Depends(tenant_graph)) -> dict[str
     except ToolError as exc:
         raise HTTPException(status_code=404 if exc.kind == "unresolved" else 400, detail=str(exc))
     action = res.rows[0]
-    inv_id = ACTIONS.get(action_id)
-    if inv_id and inv_id in REPORTS and REPORTS[inv_id].get("action"):
-        REPORTS[inv_id]["action"]["status"] = "executed"
-        REPORTS[inv_id]["action"]["executed_at"] = now
+    inv_id = ACTIONS.get((g.name, action_id))
+    rep = REPORTS.get((g.name, inv_id)) if inv_id else None
+    if rep and rep.get("action"):
+        rep["action"]["status"] = "executed"
+        rep["action"]["executed_at"] = now
     return {"action": action, "simulated": True, "message": f"SIMULATED: rollback of {action['deployment_id']} recorded as executed. No real system was touched.",
             "trace": [c.to_dict() for c in ctx.trace]}
 
 
 @app.post("/api/demo/reset")
 def demo_reset(memory_only: bool = False, g: Graph = Depends(tenant_graph)) -> dict[str, Any]:
-    REPORTS.clear()
-    ACTIONS.clear()
+    for k in [k for k in REPORTS if k[0] == g.name]:  # only this tenant's cache
+        REPORTS.pop(k, None)
+    for k in [k for k in ACTIONS if k[0] == g.name]:
+        ACTIONS.pop(k, None)
     if memory_only:
         return {"reset": "memory", "deleted": clear_memory(g), "counts": counts(g)}
     return {"reset": "graph", "counts": reset_and_seed(g)}

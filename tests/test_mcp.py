@@ -22,7 +22,8 @@ def test_mcp_lists_catalog_and_guards_unknown_names(fresh_memory, monkeypatch):
     async def run():
         async with Client(srv.mcp) as client:
             tools = {t.name for t in (await client.list_tools()).tools}
-            assert {"get_incident", "upstream_dependencies", "path_between", "recall", "record_investigation", "investigate"} <= tools
+            assert {"get_incident", "upstream_dependencies", "path_between", "recall", "record_investigation"} <= tools
+            assert not {"investigate", "record_action"} & tools  # unverified writes / human approval are never exposed to outside agents
             assert not any("cypher" in t.lower() or "query" in t.lower() for t in tools)  # no raw-query tool
             ok = _data(await client.call_tool("upstream_dependencies", {"service": "checkout", "depth": 2}))
             assert ok["ok"] and {r["service"] for r in ok["rows"]} >= {"payments-api", "cart"}

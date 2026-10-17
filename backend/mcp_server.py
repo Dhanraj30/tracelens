@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import uuid
 from typing import Any
 
 from mcp.server import MCPServer
@@ -156,7 +157,7 @@ def record_investigation(incident_id: str, outcome: str, suspects: list[str], ag
     supported = [h for h in hyps if h["status"] == "supported"]
     rejected = [h for h in hyps if h["status"] == "rejected"]
     verified_outcome = verification["outcome"]  # judged on the suspects the guest actually proposed
-    inv_id = f"inv-{int(time.time() * 1000)}"
+    inv_id = f"inv-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
     trace = session_trace()
     payload = {
         "id": inv_id, "incident_id": incident_id, "at": int(time.time()), "mode": "agent", "outcome": verified_outcome,
@@ -179,21 +180,27 @@ def record_investigation(incident_id: str, outcome: str, suspects: list[str], ag
             "action": payload["action"], "tool_calls_recorded": len(trace), "candidates_checked": verification["candidates_checked"]})
 
 
-@mcp.tool()
-def record_action(action_id: str, status: str, at: int) -> str:
-    """WRITE: set an Action's status (approved | executed | rejected). Execution is simulated. (Humans only — not for guest agents.)"""
-    return _run("record_action", "", action_id=action_id, status=status, at=at)
+ADMIN_TOOLS = os.environ.get("TRACELENS_ADMIN_TOOLS") == "1"
+"""`record_action` (human approval) and `investigate` (the engine, which writes with agent="engine") are NOT exposed over MCP by
+default: an outside agent must never approve actions or store memory stamped as the engine's. The human approval path is
+POST /api/actions/{id}/approve. Set TRACELENS_ADMIN_TOOLS=1 to register them for a trusted local client."""
 
+if ADMIN_TOOLS:
 
-@mcp.tool()
-def investigate(incident_id: str) -> str:
-    """Run the full bounded TraceLens investigation for an incident and return the report (outcome, hypotheses, root cause, trace)."""
-    from .agent.engine import Investigator
+    @mcp.tool()
+    def record_action(action_id: str, status: str, at: int) -> str:
+        """WRITE (admin): set an Action's status (approved | executed | rejected). Execution is simulated."""
+        return _run("record_action", "", action_id=action_id, status=status, at=at)
 
-    rep = Investigator(get_graph()).run(incident_id=incident_id)
-    rep["trace_tools"] = [c["tool"] for c in rep["trace"]]
-    del rep["trace"]  # full Cypher trace is available per-tool; keep the MCP payload small
-    return compact(rep)
+    @mcp.tool()
+    def investigate(incident_id: str) -> str:
+        """(admin) Run the full bounded TraceLens investigation for an incident and return the report."""
+        from .agent.engine import Investigator
+
+        rep = Investigator(get_graph()).run(incident_id=incident_id)
+        rep["trace_tools"] = [c["tool"] for c in rep["trace"]]
+        del rep["trace"]  # full Cypher trace is available per-tool; keep the MCP payload small
+        return compact(rep)
 
 
 @mcp.tool()

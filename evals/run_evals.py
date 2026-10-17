@@ -245,7 +245,7 @@ async def run_once(run_id: str, live: bool, meter: RequestMeter, primary_name: s
 # ---------------------------------------------------------------------------------------------- reporting
 def _explain_error(err: str) -> str:
     if "thought_signature" in err:
-        return ("the primary model hit a Groq error mid-run, the ModelFallbackMiddleware switched to Gemini, and Gemini's OpenAI-compatible "
+        return ("the primary model hit a Groq error mid-run, the (old, mid-run) fallback switched to Gemini, and Gemini's OpenAI-compatible "
                 "endpoint rejected the transcript because it contains function calls made by a different model (Gemini 3.x requires its own "
                 "thought_signature on every function call). Infrastructure limitation, not a reasoning error.")
     if "429" in err:

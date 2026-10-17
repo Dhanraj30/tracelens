@@ -140,7 +140,7 @@ UNWIND $services AS nm
 MATCH (s:Service {name: nm})<-[:EMITTED_BY]-(e:ErrorEvent)-[:HAS_SIGNATURE]->(sig:ErrorSignature)
 WHERE e.at >= $from AND e.at <= $to
 RETURN s.name, sig.key, min(e.at) AS first_seen, sum(e.count) AS total, collect(e.id) AS event_ids
-ORDER BY first_seen
+ORDER BY first_seen, s.name, sig.key
 """
 
 
