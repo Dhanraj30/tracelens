@@ -445,10 +445,13 @@ class Investigator:
         if self.mode != "llm":
             return
         evidence = {k: rep[k] for k in ("incident", "outcome", "root_cause", "hypotheses", "similar_incidents", "action", "memory", "missing_data", "confidence")}
-        text, err = llm_adapter.write_narrative(evidence)
+        text, model, err, skipped = llm_adapter.write_narrative(evidence)
+        for s in skipped:  # a provider that failed before another one succeeded
+            rep["llm_fallbacks"].append({"step": "narrative", "reason": s, "fallback": "next LLM provider"})
         if text is None:
             rep["llm_fallbacks"].append({"step": "narrative", "reason": err, "fallback": "deterministic template"})
             return
+        rep["llm_model"] = model
         known = {r[0] for r in self.graph.read("MATCH (s:Service) RETURN s.name")[0]}
         evidence_ids = set(_collect_ids(evidence)) | {rep["incident"]["id"], rep["incident"]["service"]}
         ok, problems = NarrativeValidator(known, evidence_ids, traversals_empty=not rep["graph_highlights"].get("visited"), outcome=rep["outcome"]).validate(text)

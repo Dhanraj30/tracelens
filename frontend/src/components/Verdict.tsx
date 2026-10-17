@@ -127,12 +127,14 @@ export default function Verdict({ report, onEvidence, onAction }: { report: Repo
         <div className="flex items-center justify-between">
           <div className="text-[11px] uppercase tracking-wider text-slate-400">Narrative</div>
           <span className={`rounded border px-1.5 text-[10px] ${report.narrative_source === 'llm' ? 'border-violet-500/50 text-violet-300' : 'border-slate-600 text-slate-400'}`}>
-            {report.narrative_source === 'llm' ? 'written by LLM · validated against evidence' : 'deterministic template'}
+            {report.narrative_source === 'llm' ? `written by ${report.llm_model ?? 'LLM'} · validated against evidence` : 'deterministic template'}
           </span>
         </div>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-200">{report.narrative}</p>
         {report.llm_fallbacks.map((f, i) => (
-          <div key={i} className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200">LLM unavailable → deterministic ({f.step}): {f.reason}</div>
+          <div key={i} className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200">
+            {f.fallback === 'next LLM provider' ? 'LLM provider failed → tried next provider' : 'LLM unavailable → deterministic'} ({f.step}): {f.reason}
+          </div>
         ))}
       </div>
     </div>

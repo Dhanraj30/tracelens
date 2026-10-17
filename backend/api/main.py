@@ -57,7 +57,8 @@ def health() -> dict[str, Any]:
         "status": "ok" if ok else "degraded",
         "falkordb": {"reachable": ok, "host": settings.falkordb_host, "port": settings.falkordb_port},
         "graph": {"name": g.name, "nodes": nodes, "seeded": nodes > 0},
-        "llm": {"configured": llm_adapter.available(), "model": settings.llm_model if llm_adapter.available() else None},
+        "llm": {"configured": llm_adapter.available(), "model": settings.llm_model if llm_adapter.available() else None,
+                "fallback_model": settings.llm_fallback_model or None},
         "time": int(time.time()),
     }
 

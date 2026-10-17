@@ -75,6 +75,7 @@ export interface Report {
   confidence: { passed: number; total: number; share: number; note: string; breakdown?: { check: string; passed: boolean | null; hard: boolean }[] }
   narrative: string
   narrative_source: 'template' | 'llm'
+  llm_model?: string
   llm_fallbacks: { step: string; reason: string; fallback: string }[]
   graph_highlights: { visited?: string[]; suspects?: string[]; rejected?: string[]; root_path?: string[]; boundary?: string[]; healthy?: string[] }
   states: { state: string; at_ms: number; note: string }[]

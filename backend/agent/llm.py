@@ -32,16 +32,32 @@ def available() -> bool:
     return settings.llm_configured
 
 
-def write_narrative(evidence: dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
-    """Returns (narrative, error). narrative is None when the LLM could not be used."""
-    if not settings.llm_configured:
-        return None, "LLM not configured (LLM_BASE_URL / LLM_API_KEY / LLM_MODEL)"
-    url = settings.llm_base_url.rstrip("/") + "/chat/completions"
+def write_narrative(evidence: dict[str, Any]) -> tuple[Optional[str], Optional[str], Optional[str], list[str]]:
+    """Try each configured provider in order. Returns (narrative, model_used, error, skipped_reasons).
+
+    narrative is None when no provider could be used; skipped_reasons lists why earlier providers failed.
+    """
+    providers = settings.llm_providers
+    if not providers:
+        return None, None, "LLM not configured (LLM_BASE_URL / LLM_API_KEY / LLM_MODEL)", []
+    skipped: list[str] = []
+    for base_url, api_key, model in providers:
+        text, err = _call_provider(base_url, api_key, model, evidence)
+        if text is not None:
+            return text, model, None, skipped
+        skipped.append(f"{model}: {err}")
+    return None, None, skipped[-1], skipped[:-1]
+
+
+def _call_provider(base_url: str, api_key: str, model: str, evidence: dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+    url = base_url.rstrip("/") + "/chat/completions"
     body = {
-        "model": settings.llm_model,
+        "model": model,
         "temperature": 0.2,
-        # generous: reasoning models (e.g. gemini-2.5-flash) spend hidden "thinking" tokens from this budget
-        "max_tokens": 2000,
+        # reasoning models (gpt-oss, gemini-3.x) spend hidden "thinking" tokens from this budget: keep it generous
+        # and ask for low effort — a 6-sentence summary of structured evidence needs no deep reasoning.
+        "max_tokens": 4000,
+        "reasoning_effort": "low",
         "messages": [
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": "EVIDENCE:\n" + json.dumps(evidence, default=str)[:12000]},
@@ -49,10 +65,10 @@ def write_narrative(evidence: dict[str, Any]) -> tuple[Optional[str], Optional[s
     }
     try:
         with httpx.Client(timeout=settings.llm_timeout_s) as client:
-            resp = client.post(url, json=body, headers={"Authorization": f"Bearer {settings.llm_api_key}"})
+            resp = client.post(url, json=body, headers={"Authorization": f"Bearer {api_key}"})
             if resp.status_code == 503:  # bounded retry: exactly one, for transient "high demand" errors
                 time.sleep(1.5)
-                resp = client.post(url, json=body, headers={"Authorization": f"Bearer {settings.llm_api_key}"})
+                resp = client.post(url, json=body, headers={"Authorization": f"Bearer {api_key}"})
         if resp.status_code == 429:
             return None, "LLM rate limited (429)"
         if resp.status_code >= 400:

@@ -24,10 +24,24 @@ class Settings:
     llm_api_key: str = field(default_factory=lambda: _env("LLM_API_KEY", ""))
     llm_model: str = field(default_factory=lambda: _env("LLM_MODEL", ""))
     llm_timeout_s: float = field(default_factory=lambda: float(_env("LLM_TIMEOUT_S", "20")))
+    # optional second provider, tried automatically when the primary fails (then the deterministic template)
+    llm_fallback_base_url: str = field(default_factory=lambda: _env("LLM_FALLBACK_BASE_URL", ""))
+    llm_fallback_api_key: str = field(default_factory=lambda: _env("LLM_FALLBACK_API_KEY", ""))
+    llm_fallback_model: str = field(default_factory=lambda: _env("LLM_FALLBACK_MODEL", ""))
 
     @property
     def llm_configured(self) -> bool:
         return bool(self.llm_base_url and self.llm_api_key and self.llm_model)
+
+    @property
+    def llm_providers(self) -> list[tuple[str, str, str]]:
+        """(base_url, api_key, model) in the order to try."""
+        out = []
+        if self.llm_configured:
+            out.append((self.llm_base_url, self.llm_api_key, self.llm_model))
+        if self.llm_fallback_base_url and self.llm_fallback_api_key and self.llm_fallback_model:
+            out.append((self.llm_fallback_base_url, self.llm_fallback_api_key, self.llm_fallback_model))
+        return out
 
 
 settings = Settings()
