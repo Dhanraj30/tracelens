@@ -17,6 +17,13 @@ Scenario timeline (all times on BASE_DAY, UTC):
   14:25 incident inc-1043 opened (Scenario B)
   15:12 search EmptyResultSet begins
   15:30 incident inc-1044 opened (Scenario C)
+
+  +7 days (Scenario D - learning from approvals):
+  10:20 auth deploy (dep-auth-d)                 -> candidate, ruled out by origin check
+  10:40 payments-api deploy (dep-pay-d)          -> pool tuned again (5 -> 8), still too small   [real cause]
+  10:47 payments-api PoolTimeoutError begins
+  10:50 checkout UpstreamTimeout begins
+  11:00 incident inc-1051 opened                 -> history check finds TraceLens's own Resolution of inc-1042 (if approved)
 """
 from __future__ import annotations
 
@@ -91,6 +98,12 @@ DEPLOYMENTS: list[dict[str, Any]] = [
     {"id": "dep-chk-1405", "service": "checkout", "at": t(14, 5), "version": "v5.3.1", "author": "marco",
      "changes": [{"id": "cc-checkout-copy", "summary": "Update checkout button copy and analytics event names",
                   "files": ["checkout/web/PayButton.tsx"], "risk": "low"}]},
+    # --- Scenario D window (+7 days, 10:00-11:00) ---
+    {"id": "dep-auth-d", "service": "auth", "at": t(10, 20, 7), "version": "v1.23.0", "author": "sam",
+     "changes": [{"id": "cc-auth-samesite", "summary": "Set session cookie SameSite=Lax", "files": ["auth/cookies.py"], "risk": "low"}]},
+    {"id": "dep-pay-d", "service": "payments-api", "at": t(10, 40, 7), "version": "v2.15.0", "author": "priya",
+     "changes": [{"id": "cc-pool-size-2", "summary": "Set Postgres connection pool max_size to 8 (was 50 before the rollback)",
+                  "files": ["payments/db/pool.py"], "risk": "high"}]},
     # --- same day, outside windows ---
     {"id": "dep-auth-1100", "service": "auth", "at": t(11, 0), "version": "v1.22.0", "author": "sam",
      "changes": [{"id": "cc-auth-jwt", "summary": "Rotate JWT signing key", "files": ["auth/keys.py"], "risk": "medium"}]},
@@ -145,6 +158,11 @@ ERRORS: list[dict[str, Any]] = [
     # Scenario C
     {"id": "err-srch-1512", "service": "search", "sig": "EmptyResultSet", "at": t(15, 12), "count": 540,
      "message": "EmptyResultSet: vendor-search-index returned 0 hits for 100% of queries"},
+    # Scenario D (+7 days)
+    {"id": "err-pay-d", "service": "payments-api", "sig": "PoolTimeoutError", "at": t(10, 47, 7), "count": 58,
+     "message": "PoolTimeoutError: QueuePool limit of size 8 overflow 0 reached, connection timed out"},
+    {"id": "err-chk-d", "service": "checkout", "sig": "UpstreamTimeout", "at": t(10, 50, 7), "count": 41,
+     "message": "UpstreamTimeout: payments-api did not respond within 3000ms (POST /v1/charges)"},
     # History
     {"id": "err-pay-h1", "service": "payments-api", "sig": "PoolTimeoutError", "at": t(10, 31, -21), "count": 260,
      "message": "PoolTimeoutError: QueuePool limit of size 10 overflow 0 reached, connection timed out"},
@@ -184,6 +202,10 @@ INCIDENTS: list[dict[str, Any]] = [
     {"id": "inc-1044", "title": "Search results are empty", "status": "open", "opened_at": t(15, 30),
      "symptom": "Search returns 0 results for all queries", "service": "search",
      "observed": ["err-srch-1512"]},
+    # Scenario D - a week later, same shape; history should include TraceLens's own resolution of inc-1042 once approved
+    {"id": "inc-1051", "title": "Checkout failing again after pool change", "status": "open", "opened_at": t(11, 0, 7),
+     "symptom": "Checkout error rate 21%, charge timeouts", "service": "checkout",
+     "observed": ["err-chk-d"]},
     # History (resolved)
     {"id": "inc-0877", "title": "Payments latency spike after pool tuning", "status": "resolved", "opened_at": t(10, 40, -21),
      "symptom": "Charge API p99 > 8s, pool timeouts", "service": "payments-api", "observed": ["err-pay-h1"],
@@ -282,10 +304,13 @@ def counts(g: Graph) -> dict[str, int]:
 
 
 def clear_memory(g: Graph) -> int:
-    """Delete only agent-written nodes (Investigation, Hypothesis, Action). Seed data is untouched."""
+    """Delete only agent-written nodes (Investigation, Hypothesis, Action, and Resolutions TraceLens wrote on approval)
+    and reopen incidents TraceLens resolved. Seed data is untouched."""
     rows, _ = g.write(
-        "MATCH (n) WHERE n:Investigation OR n:Hypothesis OR n:Action DETACH DELETE n RETURN count(n)"
+        "MATCH (n) WHERE n:Investigation OR n:Hypothesis OR n:Action OR (n:Resolution AND n.source = 'tracelens') "
+        "DETACH DELETE n RETURN count(n)"
     )
+    g.write("MATCH (i:Incident) WHERE i.resolved_at IS NOT NULL SET i.status = 'open', i.resolved_at = NULL")
     return int(rows[0][0]) if rows else 0
 
 

@@ -221,11 +221,13 @@ MATCH (past)-[:AFFECTS]->(ps:Service)
 OPTIONAL MATCH (past)-[:RESOLVED_BY]->(res:Resolution)
 OPTIONAL MATCH (res)-[:FOLLOWED]->(rb:Runbook)
 OPTIONAL MATCH (res)-[:REVERTED]->(rd:Deployment)-[:INCLUDES]->(cc:CodeChange)
+OPTIONAL MATCH (rd)-[:DEPLOYED_TO]->(rds:Service)
 RETURN past.id, past.title, past.opened_at, ps.name,
        collect(DISTINCT sig.key) AS shared_signatures,
        ps.name IN $services AS same_service,
        res.id, res.summary, rb.id, rb.title, rb.steps, rd.id,
-       collect(DISTINCT cc.files) AS reverted_files
+       collect(DISTINCT cc.files) AS reverted_files,
+       res.source AS resolution_source, res.agent AS resolution_agent, rds.name AS reverted_service
 ORDER BY past.opened_at DESC
 """
 
@@ -245,11 +247,15 @@ def similar_incidents(ctx: ToolContext, signature_keys: list[str], services: lis
     resolve_services(ctx, services)
     rows, _ = ctx.graph.read(Q_SIMILAR, {"signatures": signature_keys, "services": services})
     cols = ["id", "title", "opened_at", "service", "shared_signatures", "same_service", "resolution_id", "resolution_summary",
-            "runbook_id", "runbook_title", "runbook_steps", "reverted_deployment", "reverted_files"]
+            "runbook_id", "runbook_title", "runbook_steps", "reverted_deployment", "reverted_files", "resolution_source", "resolution_agent",
+            "reverted_service"]
     out = rows_to_dicts(rows, cols)
     for r in out:
         r["reverted_files"] = sorted({f for files in r["reverted_files"] if files for f in files})
         r["match_links"] = ["ErrorSignature:" + k for k in r["shared_signatures"]] + (["Service:" + r["service"]] if r["same_service"] else [])
+        if r.get("reverted_service") and r["reverted_service"] in services and r["reverted_service"] != r["service"]:
+            r["match_links"].append(f"Resolution→REVERTED→Deployment on {r['reverted_service']}")
+        r["learned_by_tracelens"] = r.get("resolution_source") == "tracelens"
     ev = [x for r in out for x in (r["id"], r["resolution_id"], r["runbook_id"], r["reverted_deployment"]) if x]
     return ToolResult("similar_incidents", out, evidence_ids=ev, extra={"summary": f"{len(out)} similar resolved incident(s)"})
 
@@ -414,6 +420,22 @@ OPTIONAL MATCH (inv)-[:CONSIDERED]->(h:Hypothesis {status: 'supported'})
 SET h.confirmed = CASE WHEN $status IN ['approved', 'executed'] THEN true ELSE h.confirmed END
 RETURN a.id, a.status, a.kind, a.summary, a.deployment_id, a.runbook_id, a.simulated, inv.id
 """
+# Learning from approvals: an executed (simulated) action becomes a Resolution on the incident, linked to the
+# deployment it reverted and the runbook it followed — exactly the structure `similar_incidents` traverses.
+Q_ACTION_RESOLUTION = """
+MATCH (inv:Investigation)-[:PROPOSED]->(a:Action {id: $id}), (inv)-[:INVESTIGATED]->(inc:Incident)
+MERGE (res:Resolution {id: 'res-' + $id})
+SET res.summary = $summary, res.at = $at, res.source = 'tracelens', res.agent = coalesce(inv.agent, 'engine'), res.investigation_id = inv.id
+MERGE (inc)-[:RESOLVED_BY]->(res)
+SET inc.status = 'resolved', inc.resolved_at = $at
+WITH res, a, inc
+OPTIONAL MATCH (d:Deployment {id: a.deployment_id})
+FOREACH (_ IN CASE WHEN d IS NULL THEN [] ELSE [1] END | MERGE (res)-[:REVERTED]->(d))
+WITH res, a, inc
+OPTIONAL MATCH (rb:Runbook {id: a.runbook_id})
+FOREACH (_ IN CASE WHEN rb IS NULL THEN [] ELSE [1] END | MERGE (res)-[:FOLLOWED]->(rb))
+RETURN res.id, inc.id
+"""
 
 
 @tool(
@@ -467,9 +489,11 @@ def record_investigation(ctx: ToolContext, investigation: dict[str, Any]) -> Too
 
 @tool(
     "record_action",
-    "Update an Action's status (proposed -> approved -> executed). Execution is SIMULATED. Approval marks the supported hypothesis as human-confirmed.",
-    "Closes the loop: a human-approved action is recorded on the graph and becomes stronger memory for later investigations.",
-    [Q_ACTION_STATUS],
+    "Update an Action's status (proposed -> approved -> executed). Execution is SIMULATED. Approval marks the supported hypothesis as human-confirmed; "
+    "execution also writes a Resolution on the incident (RESOLVED_BY / REVERTED / FOLLOWED) and marks the incident resolved.",
+    "Closes the loop: a human-approved action is recorded on the graph and becomes stronger memory. The Resolution it writes is reachable by "
+    "`similar_incidents` through the shared ErrorSignature, so TraceLens learns its own fixes.",
+    [Q_ACTION_STATUS, Q_ACTION_RESOLUTION],
     {"action_id": "string", "status": "'approved' | 'executed' | 'rejected'", "at": "epoch seconds"},
     writes=True,
 )
@@ -482,4 +506,12 @@ def record_action(ctx: ToolContext, action_id: str, status: str, at: int) -> Too
     if not rows:
         raise ToolError(f"unknown action: {action_id}", kind="unresolved", unresolved=[action_id])
     out = rows_to_dicts(rows, ["id", "status", "kind", "summary", "deployment_id", "runbook_id", "simulated", "investigation_id"])
-    return ToolResult("record_action", out, evidence_ids=[action_id], extra={"summary": f"{action_id} -> {status}"})
+    extra: dict[str, Any] = {"summary": f"{action_id} -> {status}"}
+    if status == "executed":
+        a = out[0]
+        summary = f"{a['summary']} (simulated execution approved by operator; TraceLens investigation {a['investigation_id']})"
+        rrows, _ = ctx.graph.write(Q_ACTION_RESOLUTION, {"id": action_id, "summary": summary, "at": at})
+        if rrows:
+            out[0]["resolution_id"], out[0]["incident_id"] = rrows[0][0], rrows[0][1]
+            extra["summary"] += f"; wrote {rrows[0][0]} on {rrows[0][1]} (now resolved)"
+    return ToolResult("record_action", out, evidence_ids=[action_id] + [out[0].get("resolution_id")] if out[0].get("resolution_id") else [action_id], extra=extra)

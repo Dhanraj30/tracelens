@@ -51,6 +51,7 @@ export interface SimilarIncident {
   id: string; title: string; opened_at: number; service: string; shared_signatures: string[]; same_service: boolean
   resolution_id?: string; resolution_summary?: string; runbook_id?: string; runbook_title?: string; runbook_steps?: string[]
   reverted_deployment?: string; reverted_files?: string[]; match_links: string[]
+  resolution_source?: string | null; resolution_agent?: string | null; learned_by_tracelens?: boolean
 }
 
 export interface Action {

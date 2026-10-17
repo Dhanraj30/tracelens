@@ -31,6 +31,19 @@ scenarios:
     expected_outcome: inconclusive
     boundary_service: vendor-search-index
     missing_data_mentions: [vendor-search-index]
+  D:
+    name: "Checkout failing again a week later (learns from the approved fix)"
+    incident_id: inc-1051
+    affected_service: checkout
+    requires: A approved (action executed)
+    expected_outcome: root_cause_supported
+    root_cause_deployment: dep-pay-d
+    rejected_deployments: [dep-auth-d]
+    rejected_checks:
+      dep-auth-d: origin                  # earliest errors sit at payments-api, which auth does not reach
+    similar_incidents_must_include: [inc-1042, inc-0877]
+    learned_resolution_on: inc-1042       # Resolution written by TraceLens on approval, found through the shared ErrorSignature
+    memory_recall_expected: false         # dep-pay-1352 is a week old: outside D's window, so this is history, not recall
   unknown_incident:
     incident_id: inc-9999
     expected_outcome: unknown_entity

@@ -34,7 +34,7 @@ MATCH (i:Incident {id: $id}) RETURN count(i)
 | 8 | `critical_services` | no | Weights candidates: a change on a high-centrality service has a wider blast radius, so it is examined first and its score is annotated. |
 | 9 | `recall` | no | Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived. Knowledge transfers across incidents; re-investigating the same incident always re-derives. |
 | 10 | `record_investigation` | yes | This is the memory. The next investigation's `recall` reads exactly these nodes — no seed data involved. |
-| 11 | `record_action` | yes | Closes the loop: a human-approved action is recorded on the graph and becomes stronger memory for later investigations. |
+| 11 | `record_action` | yes | Closes the loop: a human-approved action is recorded on the graph and becomes stronger memory. The Resolution it writes is reachable by `similar_incidents` through the shared ErrorSignature, so TraceLens learns its own fixes. |
 
 
 ### 1. `get_incident`
@@ -136,11 +136,13 @@ MATCH (past)-[:AFFECTS]->(ps:Service)
 OPTIONAL MATCH (past)-[:RESOLVED_BY]->(res:Resolution)
 OPTIONAL MATCH (res)-[:FOLLOWED]->(rb:Runbook)
 OPTIONAL MATCH (res)-[:REVERTED]->(rd:Deployment)-[:INCLUDES]->(cc:CodeChange)
+OPTIONAL MATCH (rd)-[:DEPLOYED_TO]->(rds:Service)
 RETURN past.id, past.title, past.opened_at, ps.name,
        collect(DISTINCT sig.key) AS shared_signatures,
        ps.name IN $services AS same_service,
        res.id, res.summary, rb.id, rb.title, rb.steps, rd.id,
-       collect(DISTINCT cc.files) AS reverted_files
+       collect(DISTINCT cc.files) AS reverted_files,
+       res.source AS resolution_source, res.agent AS resolution_agent, rds.name AS reverted_service
 ORDER BY past.opened_at DESC
 ```
 
@@ -194,7 +196,8 @@ WHERE inc.id <> $exclude_incident
 OPTIONAL MATCH (inv)-[:PROPOSED]->(a:Action)
 OPTIONAL MATCH (d)-[:INCLUDES]->(cc:CodeChange)
 RETURN inv.id, inv.at, inv.outcome, inc.id, inc.title, h.id, h.score, h.confirmed, d.id, d.at, d.version, s.name,
-       a.id, a.status, a.kind, a.runbook_id, collect({id: cc.id, summary: cc.summary, risk: cc.risk}) AS changes
+       a.id, a.status, a.kind, a.runbook_id, collect({id: cc.id, summary: cc.summary, risk: cc.risk}) AS changes,
+       coalesce(inv.agent, 'engine') AS agent, coalesce(inv.verified, true) AS verified
 ORDER BY inv.at DESC
 ```
 
@@ -209,7 +212,8 @@ Write back the Investigation, its Hypotheses (supported AND rejected), SUSPECTS 
 ```cypher
 MATCH (inc:Incident {id: $incident_id})
 MERGE (inv:Investigation {id: $id})
-SET inv.at = $at, inv.mode = $mode, inv.outcome = $outcome, inv.tool_calls = $tool_calls, inv.confidence = $confidence
+SET inv.at = $at, inv.mode = $mode, inv.outcome = $outcome, inv.tool_calls = $tool_calls, inv.confidence = $confidence,
+    inv.agent = $agent, inv.trace = $trace, inv.verified = $verified
 MERGE (inv)-[:INVESTIGATED]->(inc)
 ```
 
@@ -257,9 +261,9 @@ FOREACH (_ IN CASE WHEN rb IS NULL THEN [] ELSE [1] END | MERGE (a)-[:FOLLOWS]->
 
 ### 11. `record_action`
 
-Update an Action's status (proposed -> approved -> executed). Execution is SIMULATED. Approval marks the supported hypothesis as human-confirmed.
+Update an Action's status (proposed -> approved -> executed). Execution is SIMULATED. Approval marks the supported hypothesis as human-confirmed; execution also writes a Resolution on the incident (RESOLVED_BY / REVERTED / FOLLOWED) and marks the incident resolved.
 
-**Proves:** Closes the loop: a human-approved action is recorded on the graph and becomes stronger memory for later investigations.
+**Proves:** Closes the loop: a human-approved action is recorded on the graph and becomes stronger memory. The Resolution it writes is reachable by `similar_incidents` through the shared ErrorSignature, so TraceLens learns its own fixes.
 
 **Arguments:** `action_id` (string), `status` ('approved' | 'executed' | 'rejected'), `at` (epoch seconds)
 
@@ -270,6 +274,21 @@ WITH inv, a
 OPTIONAL MATCH (inv)-[:CONSIDERED]->(h:Hypothesis {status: 'supported'})
 SET h.confirmed = CASE WHEN $status IN ['approved', 'executed'] THEN true ELSE h.confirmed END
 RETURN a.id, a.status, a.kind, a.summary, a.deployment_id, a.runbook_id, a.simulated, inv.id
+```
+
+```cypher
+MATCH (inv:Investigation)-[:PROPOSED]->(a:Action {id: $id}), (inv)-[:INVESTIGATED]->(inc:Incident)
+MERGE (res:Resolution {id: 'res-' + $id})
+SET res.summary = $summary, res.at = $at, res.source = 'tracelens', res.agent = coalesce(inv.agent, 'engine'), res.investigation_id = inv.id
+MERGE (inc)-[:RESOLVED_BY]->(res)
+SET inc.status = 'resolved', inc.resolved_at = $at
+WITH res, a, inc
+OPTIONAL MATCH (d:Deployment {id: a.deployment_id})
+FOREACH (_ IN CASE WHEN d IS NULL THEN [] ELSE [1] END | MERGE (res)-[:REVERTED]->(d))
+WITH res, a, inc
+OPTIONAL MATCH (rb:Runbook {id: a.runbook_id})
+FOREACH (_ IN CASE WHEN rb IS NULL THEN [] ELSE [1] END | MERGE (res)-[:FOLLOWED]->(rb))
+RETURN res.id, inc.id
 ```
 
 ## Graph algorithms used

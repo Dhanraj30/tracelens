@@ -88,7 +88,9 @@ export default function Verdict({ report, onEvidence, onAction }: { report: Repo
             <div key={s.id} className="mt-1.5 text-[12.5px]">
               <button className="font-semibold text-slate-100 hover:underline" onClick={() => onEvidence([s.id, s.service, ...(s.reverted_deployment ? [s.reverted_deployment] : [])])}>{s.id}</button>
               <span className="text-slate-400"> · {s.title} · {fmtDate(s.opened_at)}</span>
-              <div className="mt-0.5 flex flex-wrap gap-1">{s.match_links.map((m) => <span key={m} className="mono rounded border border-sky-500/40 px-1.5 text-[10px] text-sky-300">{m}</span>)}
+              <div className="mt-0.5 flex flex-wrap gap-1">
+                {s.learned_by_tracelens && <span className="rounded border border-emerald-500/50 bg-emerald-500/10 px-1.5 text-[10px] text-emerald-300" title={`Resolution written by TraceLens when an operator approved the action (agent ${s.resolution_agent ?? 'engine'})`}>🧠 learned by TraceLens · {s.resolution_agent ?? 'engine'}</span>}
+                {s.match_links.map((m) => <span key={m} className="mono rounded border border-sky-500/40 px-1.5 text-[10px] text-sky-300">{m}</span>)}
                 {s.reverted_files?.map((f) => <span key={f} className="mono rounded border border-violet-500/40 px-1.5 text-[10px] text-violet-300">CodeChange file: {f}</span>)}</div>
               {s.resolution_summary && <div className="mt-1 text-slate-300">Resolved: {s.resolution_summary}</div>}
               {s.runbook_id && <div className="text-slate-400">Runbook <span className="mono">{s.runbook_id}</span> — {s.runbook_title}</div>}

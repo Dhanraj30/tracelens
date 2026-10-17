@@ -289,15 +289,24 @@ class Investigator:
             sims = self._call("similar_incidents", "past incidents reached through shared ErrorSignature nodes", signature_keys=signatures, services=path_services).rows
         rep["similar_incidents"] = sims
         for h in survivors:
-            match = [s for s in sims if s["service"] == h.service]
+            # a past incident is relevant to this candidate if it affected the same service OR its resolution reverted a
+            # deployment to the same service (e.g. checkout incident fixed by rolling back payments-api)
+            match = [s for s in sims if s["service"] == h.service or s.get("reverted_service") == h.service]
             if match:
-                s = match[0]
                 files_now = {f for c in h.details["deployment"]["changes"] for f in (c.get("files") or [])}
+                # strongest structural match first: same file touched by the reverted change, then most recent
+                match.sort(key=lambda s: (-len(files_now & set(s.get("reverted_files") or [])), -(s.get("opened_at") or 0)))
+                s = match[0]
                 overlap = sorted(files_now & set(s.get("reverted_files") or []))
                 detail = f"incident {s['id']} on {h.service} shared signature {', '.join(s['shared_signatures'])} and was resolved by {s.get('resolution_summary') or 'a recorded resolution'}"
                 if overlap:
                     detail += f"; the reverted change touched the same file(s): {', '.join(overlap)}"
-                h.checks.append(Check("history", True, detail, [s["id"]] + [x for x in (s.get("resolution_id"), s.get("runbook_id"), s.get("reverted_deployment")) if x], tool_step=self.ctx.tool_calls))
+                if s.get("learned_by_tracelens"):
+                    detail += f" (resolution learned by TraceLens from an operator-approved action, agent {s.get('resolution_agent') or 'engine'})"
+                if len(match) > 1:
+                    detail += f"; also {', '.join(m['id'] for m in match[1:])}"
+                ev = [m["id"] for m in match] + [x for x in (s.get("resolution_id"), s.get("runbook_id"), s.get("reverted_deployment")) if x]
+                h.checks.append(Check("history", True, detail, ev, tool_step=self.ctx.tool_calls))
                 h.details["similar_incident"] = s
             else:
                 h.checks.append(Check("history", False, f"no resolved incident shares a signature with {h.service}", [h.service], tool_step=self.ctx.tool_calls))

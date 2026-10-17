@@ -77,6 +77,52 @@ def test_scenario_c_inconclusive(fresh_memory, scenarios):
     assert all(h["status"] != "supported" for h in r["hypotheses"])
 
 
+def _approve(graph, action_id: str) -> dict:
+    from backend.seed import t
+    from backend.tools import ToolContext
+
+    ctx = ToolContext(graph, max_calls=4)
+    ctx.call("record_action", action_id=action_id, status="approved", at=t(14, 40))
+    return ctx.call("record_action", action_id=action_id, status="executed", at=t(14, 41)).rows[0]
+
+
+def test_scenario_d_learns_from_the_approved_fix(fresh_memory, scenarios):
+    """A week later the same shape of failure: history must include the Resolution TraceLens wrote on approval."""
+    s = scenarios["D"]
+    a = _run(fresh_memory, incident_id=scenarios["A"]["incident_id"])
+    executed = _approve(fresh_memory, a["action"]["id"])
+    assert executed["status"] == "executed" and executed["resolution_id"] == f"res-{a['action']['id']}" and executed["incident_id"] == "inc-1042"
+    rows, _ = fresh_memory.read(
+        "MATCH (i:Incident {id:'inc-1042'})-[:RESOLVED_BY]->(r:Resolution)-[:REVERTED]->(d:Deployment), (r)-[:FOLLOWED]->(rb:Runbook) "
+        "RETURN i.status, r.source, d.id, rb.id")
+    assert rows == [["resolved", "tracelens", scenarios["A"]["root_cause_deployment"], scenarios["A"]["runbook"]]]
+
+    d = _run(fresh_memory, incident_id=s["incident_id"])
+    assert d["outcome"] == s["expected_outcome"]
+    assert d["memory"] is None  # a week old -> outside the window: this is history, not recall
+    assert d["root_cause"]["deployment_id"] == s["root_cause_deployment"]
+    by_suspect = {h["suspect"]: h for h in d["hypotheses"]}
+    for dep_id, check in s["rejected_checks"].items():
+        assert by_suspect[dep_id]["status"] == "rejected" and check in {c["name"] for c in by_suspect[dep_id]["checks"] if c["passed"] is False}
+    sims = {x["id"]: x for x in d["similar_incidents"]}
+    assert set(s["similar_incidents_must_include"]) <= set(sims)
+    learned = sims[s["learned_resolution_on"]]
+    assert learned["learned_by_tracelens"] is True and learned["resolution_id"] == executed["resolution_id"]
+    assert learned["reverted_deployment"] == scenarios["A"]["root_cause_deployment"] and learned["runbook_id"] == scenarios["A"]["runbook"]
+    assert "payments/db/pool.py" in learned["reverted_files"]  # same file as dep-pay-d's change: structural match
+    history = next(c for c in by_suspect[s["root_cause_deployment"]]["checks"] if c["name"] == "history")
+    assert history["passed"] is True and "inc-1042" in history["detail"] and "inc-1042" in history["evidence_ids"]
+    assert d["action"]["runbook_id"] == scenarios["A"]["runbook"]  # the runbook came through the learned resolution
+
+
+def test_scenario_d_without_approval_has_no_learned_resolution(fresh_memory, scenarios):
+    s = scenarios["D"]
+    _run(fresh_memory, incident_id=scenarios["A"]["incident_id"])  # investigated but never approved
+    d = _run(fresh_memory, incident_id=s["incident_id"])
+    assert d["outcome"] == s["expected_outcome"] and d["root_cause"]["deployment_id"] == s["root_cause_deployment"]
+    assert [x["id"] for x in d["similar_incidents"]] == ["inc-0877"]  # only the seeded history
+
+
 def test_unknown_incident_runs_no_tool(fresh_memory, scenarios):
     s = scenarios["unknown_incident"]
     r = _run(fresh_memory, incident_id=s["incident_id"])
