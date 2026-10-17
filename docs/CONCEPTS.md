@@ -69,7 +69,17 @@ If someone asks "isn't the engine just LangGraph by hand?": yes, intentionally, 
 - Scenario B proves it: refunds fail 20 minutes after checkout; `recall` finds Scenario A's write-back, re-verifies the timeline for refunds-worker, and answers in 5 tool calls instead of 11. Reset memory and it goes back to the long way (there is a test for this).
 - Keeping **rejected** hypotheses is deliberate: the next investigator (human or agent) can see what was already excluded and why.
 
-**What it is not.** It is not conversational memory and not a cache of LLM text. No LLM output is ever written to the graph.
+**What it is not.** It is not conversational memory and not a cache of LLM text. No LLM output is ever written to the graph (a guest agent's *stated reasons* are stored on the trace, labelled unverified, but never as facts).
+
+### Three kinds of memory (Track 02 vocabulary), mapped to real nodes
+
+| Kind | What it means | In TraceLens | Where |
+|---|---|---|---|
+| **Episodic** — "what happened, when, by whom" | A record of specific past events | `Investigation {at, agent, outcome, trace}` → `CONSIDERED` → `Hypothesis {status, score, confirmed}` → `SUPPORTED_BY` / `REJECTED_BY {check}` → the actual evidence nodes. Provenance is `agent = "engine"` or `"mcp:<name>"`. `recall` reads it; the "Past investigations" tab shows it. | `record_investigation`, `recall` in `backend/tools/catalog.py`; `_remember` in `backend/agent/engine.py` |
+| **Semantic** — "what is true about the world" | Facts and relationships, independent of any one episode | The entity graph itself (Service, DEPENDS_ON, Deployment, CodeChange, ErrorEvent, ErrorSignature) **plus what the agent adds to it**: on an approved action, `record_action` writes `(:Incident)-[:RESOLVED_BY]->(:Resolution {source:'tracelens'})-[:REVERTED]->(:Deployment)` and `-[:FOLLOWED]->(:Runbook)`. That new fact is found later by `similar_incidents` through the shared `ErrorSignature` (Scenario D). | `Q_ACTION_RESOLUTION` in `catalog.py`; seed data in `backend/seed.py` |
+| **Procedural** — "how to fix it" | Reusable procedures | `Runbook {steps}` nodes. The ACT state attaches the runbook reached through history to the proposed `Action` (`-[:FOLLOWS]->`), and an approved action carries it into the new `Resolution`, so the procedure is reused incident after incident. | `_propose_action` in `engine.py`; `Q_RECORD_ACTION` |
+
+**Where it is thin (said plainly).** Semantic memory grows only through approvals; the agent does not infer new facts on its own. Procedural memory is reuse of existing runbooks; TraceLens does not author new runbooks. There is no conversational memory and no per-user profile. Multi-agent coordination is a handoff through shared graph state (engine ↔ MCP guests), not live message passing. Tenant isolation is one graph key per tenant (see the API's `tenant` parameter), which FalkorDB's multi-graph design makes cheap, but the demo does not exercise high-concurrency writes.
 
 ---
 

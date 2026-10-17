@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fmtDate, fmtMs, OUTCOME_LABEL, OUTCOME_TONE } from '../lib/format'
+import { u } from '../api'
 
 interface Row { id: string; at: number; mode: string; outcome: string; tool_calls: number; confidence: number; incident_id: string; incident_title: string; action_id?: string; action_status?: string; agent: string; verified: boolean; supported: number; rejected: number }
 interface Detail {
@@ -28,10 +29,10 @@ export default function History({ refreshKey, onEvidence }: { refreshKey: number
   const [detail, setDetail] = useState<Detail | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
-  useEffect(() => { fetch('/api/investigations').then(j<Row[]>).then(setRows).catch((e) => setErr((e as Error).message)) }, [refreshKey])
+  useEffect(() => { fetch(u('/api/investigations')).then(j<Row[]>).then(setRows).catch((e) => setErr((e as Error).message)) }, [refreshKey])
   useEffect(() => {
     if (!sel) { setDetail(null); return }
-    fetch(`/api/investigations/${sel}`).then(j<Detail>).then(setDetail).catch((e) => setErr((e as Error).message))
+    fetch(u(`/api/investigations/${sel}`)).then(j<Detail>).then(setDetail).catch((e) => setErr((e as Error).message))
   }, [sel])
 
   if (err) return <div className="p-4 text-sm text-rose-300">{err}</div>

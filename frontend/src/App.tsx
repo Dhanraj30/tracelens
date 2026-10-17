@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type Action, type GraphView, type Health, type Incident, type Report } from './api'
+import { api, tenant, type Action, type GraphView, type Health, type Incident, type Report } from './api'
 import DependencyGraph, { computeHighlight } from './components/DependencyGraph'
 import Timeline from './components/Timeline'
 import Hypotheses from './components/Hypotheses'
@@ -134,6 +134,7 @@ export default function App() {
           )}
         </div>
         <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2 text-[11.5px]">
+          {tenant && <span className="mono whitespace-nowrap rounded border border-amber-500/50 px-2 py-0.5 text-amber-300" title="all requests target graph key tracelens:<tenant>">tenant: {tenant}</span>}
           <span className={`whitespace-nowrap rounded border px-2 py-0.5 ${report?.mode === 'llm' ? 'border-violet-500/50 text-violet-300' : 'border-slate-600 text-slate-300'}`}>mode: {report?.mode ?? mode}</span>
           <span className={`flex items-center gap-1 whitespace-nowrap rounded border px-2 py-0.5 ${health?.falkordb.reachable ? 'border-emerald-500/40 text-emerald-300' : 'border-rose-500/40 text-rose-300'}`}>
             <span className={`inline-block h-2 w-2 rounded-full ${health?.falkordb.reachable ? 'bg-emerald-400' : 'bg-rose-400'}`} />

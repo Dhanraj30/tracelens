@@ -105,12 +105,19 @@ async function j<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// Optional tenant: open the dashboard with ?tenant=<slug> and every request targets graph key tracelens:<slug>.
+export const tenant: string | null = (() => { try { return new URLSearchParams(window.location.search).get('tenant') } catch { return null } })()
+export const u = (path: string) => {
+  if (!tenant) return path
+  return path + (path.includes('?') ? '&' : '?') + 'tenant=' + encodeURIComponent(tenant)
+}
+
 export const api = {
-  health: () => fetch('/api/health').then(j<Health>),
-  incidents: () => fetch('/api/incidents').then(j<Incident[]>),
-  graph: () => fetch('/api/graph').then(j<GraphView>),
+  health: () => fetch(u('/api/health')).then(j<Health>),
+  incidents: () => fetch(u('/api/incidents')).then(j<Incident[]>),
+  graph: () => fetch(u('/api/graph')).then(j<GraphView>),
   investigate: (incident_id: string, mode: 'deterministic' | 'llm') =>
-    fetch('/api/investigations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ incident_id, mode }) }).then(j<Report>),
-  approve: (actionId: string) => fetch(`/api/actions/${actionId}/approve`, { method: 'POST' }).then(j<{ action: Action; simulated: boolean; message: string }>),
-  reset: (memoryOnly: boolean) => fetch(`/api/demo/reset?memory_only=${memoryOnly}`, { method: 'POST' }).then(j<unknown>),
+    fetch(u('/api/investigations'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ incident_id, mode }) }).then(j<Report>),
+  approve: (actionId: string) => fetch(u(`/api/actions/${actionId}/approve`), { method: 'POST' }).then(j<{ action: Action; simulated: boolean; message: string }>),
+  reset: (memoryOnly: boolean) => fetch(u(`/api/demo/reset?memory_only=${memoryOnly}`), { method: 'POST' }).then(j<unknown>),
 }

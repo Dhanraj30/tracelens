@@ -6,6 +6,7 @@ what the UI's "Show Cypher" toggle displays — the trace is a product feature, 
 """
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field, asdict
 from typing import Any, Optional
@@ -126,11 +127,23 @@ class Graph:
         return True
 
 
-_default: Graph | None = None
+TENANT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
+_graphs: dict[str, Graph] = {}
 
 
-def get_graph() -> Graph:
-    global _default
-    if _default is None:
-        _default = Graph()
-    return _default
+def graph_name_for(tenant: str | None) -> str:
+    """Default graph, or one FalkorDB graph key per tenant: `<GRAPH_NAME>:<tenant>` (strict slug)."""
+    if not tenant:
+        return settings.graph_name
+    if not TENANT_RE.match(tenant):
+        raise ValueError(f"invalid tenant slug {tenant!r} (lowercase letters, digits, '-', max 32 chars)")
+    return f"{settings.graph_name}:{tenant}"
+
+
+def get_graph(tenant: str | None = None) -> Graph:
+    """Shared Graph handle per graph key. Each tenant's memory lives in its own key, invisible to the others."""
+    name = graph_name_for(tenant)
+    g = _graphs.get(name)
+    if g is None:
+        g = _graphs[name] = Graph(name)
+    return g

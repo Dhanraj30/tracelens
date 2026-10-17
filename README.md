@@ -115,6 +115,15 @@ Per candidate deployment: **temporal precedence** (hard), **dependency path** vi
 
 **Confidence means "share of checks passed" — not a probability.** We never say "proven cause"; we say *best-supported explanation* and label items *supported / ruled out / inconclusive*. Rejected hypotheses are kept, with the evidence that rejected them.
 
+## Memory (Track 02), in the judges' vocabulary
+
+- **Episodic:** `Investigation → Hypothesis → SUPPORTED_BY / REJECTED_BY` with time and provenance (`agent = engine | mcp:<name>`). Read by `recall`; shown in the "Past investigations" tab.
+- **Semantic:** the entity graph, plus the `Resolution` TraceLens writes when an operator approves an action (`RESOLVED_BY / REVERTED / FOLLOWED`). Found later by `similar_incidents` through the shared `ErrorSignature` (Scenario D, a week later).
+- **Procedural:** `Runbook` steps, reused through `Action -[:FOLLOWS]-> Runbook` and carried into new Resolutions.
+- **Cross-agent handoff:** an MCP client or the LangGraph guest writes an investigation; the server re-verifies its suspects with the graph checks before storing them; the dashboard engine then answers Scenario B "learned by mcp:langgraph".
+- **Per-tenant memory:** `?tenant=<slug>` selects graph key `tracelens:<slug>` (auto-seeded); memory written in one tenant is invisible in another.
+- **Honest limits:** no conversational memory, no inferred facts beyond approvals, no high-concurrency demo. Details in [`docs/CONCEPTS.md`](docs/CONCEPTS.md).
+
 ## Deterministic vs LLM mode
 
 - **Deterministic (default, what the demo and tests use):** no key needed. Narrative is a template built from the returned rows.
