@@ -69,7 +69,7 @@ export interface Report {
   root_cause: { deployment_id: string; version?: string; author?: string; deployment_at: number; service: string; changes: { id: string; summary: string; files?: string[]; risk?: string }[]; path: string[] | null; hypothesis_id: string } | null
   similar_incidents: SimilarIncident[]
   action: Action | null
-  memory: { used: boolean; investigation_id: string; incident_id: string; incident_title: string; learned_at: number; confirmed: boolean; action_status?: string } | null
+  memory: { used: boolean; investigation_id: string; incident_id: string; incident_title: string; learned_at: number; confirmed: boolean; action_status?: string; agent?: string; verified?: boolean } | null
   missing_data: string[]
   checked: { step: number; tool: string; summary: string; rows: number }[]
   confidence: { passed: number; total: number; share: number; note: string; breakdown?: { check: string; passed: boolean | null; hard: boolean }[] }

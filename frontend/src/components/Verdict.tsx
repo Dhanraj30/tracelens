@@ -27,9 +27,9 @@ export default function Verdict({ report, onEvidence, onAction }: { report: Repo
 
       {report.memory?.used && (
         <div className="fade-in rounded-lg border border-violet-500/40 bg-violet-500/10 p-3 text-[12.5px] text-violet-100">
-          <div className="font-semibold">🧠 Answered from memory — learned {fmtDate(report.memory.learned_at)}</div>
+          <div className="font-semibold">🧠 Answered from memory — learned by <span className="mono">{report.memory.agent ?? 'engine'}</span> at {fmtDate(report.memory.learned_at)}</div>
           <div className="mt-1 text-violet-200/90">
-            Investigation <span className="mono">{report.memory.investigation_id}</span> on incident <span className="mono">{report.memory.incident_id}</span> ("{report.memory.incident_title}") already established this root cause
+            Investigation <span className="mono">{report.memory.investigation_id}</span>{report.memory.agent && report.memory.agent !== 'engine' ? <span> (written by another agent over MCP{report.memory.verified ? ', server-verified' : ''})</span> : null} on incident <span className="mono">{report.memory.incident_id}</span> ("{report.memory.incident_title}") already established this root cause
             {report.memory.confirmed ? <span className="text-emerald-300"> and an operator approved the remediation</span> : <span className="text-amber-300"> (not yet approved by an operator)</span>}.
             Re-verified against this incident's timeline in <b>{report.tool_calls}</b> tool calls.
           </div>

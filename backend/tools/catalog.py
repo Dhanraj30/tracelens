@@ -5,6 +5,8 @@ never drift from what actually runs.
 """
 from __future__ import annotations
 
+import json
+import re
 from typing import Any
 
 from .base import (
@@ -21,6 +23,8 @@ from .base import (
     validate_name,
     validate_names,
 )
+
+AGENT_RE = re.compile(r"^[a-z][a-z0-9\-_.:]{0,63}$")  # provenance label, e.g. "engine", "mcp:langgraph"
 
 # =======================================================================================
 # 1. get_incident
@@ -326,7 +330,8 @@ WHERE inc.id <> $exclude_incident
 OPTIONAL MATCH (inv)-[:PROPOSED]->(a:Action)
 OPTIONAL MATCH (d)-[:INCLUDES]->(cc:CodeChange)
 RETURN inv.id, inv.at, inv.outcome, inc.id, inc.title, h.id, h.score, h.confirmed, d.id, d.at, d.version, s.name,
-       a.id, a.status, a.kind, a.runbook_id, collect({id: cc.id, summary: cc.summary, risk: cc.risk}) AS changes
+       a.id, a.status, a.kind, a.runbook_id, collect({id: cc.id, summary: cc.summary, risk: cc.risk}) AS changes,
+       coalesce(inv.agent, 'engine') AS agent, coalesce(inv.verified, true) AS verified
 ORDER BY inv.at DESC
 """
 
@@ -346,7 +351,7 @@ def recall(ctx: ToolContext, services: list[str], from_ts: int, to_ts: int, excl
     rows, _ = ctx.graph.read(Q_RECALL, {"services": services, "from": from_ts, "to": to_ts, "exclude_incident": exclude_incident})
     cols = ["investigation_id", "learned_at", "outcome", "incident_id", "incident_title", "hypothesis_id", "score", "confirmed",
             "deployment_id", "deployment_at", "deployment_version", "service", "action_id", "action_status", "action_kind",
-            "runbook_id", "changes"]
+            "runbook_id", "changes", "agent", "verified"]
     out = rows_to_dicts(rows, cols)
     for r in out:
         r["changes"] = [c for c in r["changes"] if c.get("id")]
@@ -360,7 +365,8 @@ def recall(ctx: ToolContext, services: list[str], from_ts: int, to_ts: int, excl
 Q_RECORD_INVESTIGATION = """
 MATCH (inc:Incident {id: $incident_id})
 MERGE (inv:Investigation {id: $id})
-SET inv.at = $at, inv.mode = $mode, inv.outcome = $outcome, inv.tool_calls = $tool_calls, inv.confidence = $confidence
+SET inv.at = $at, inv.mode = $mode, inv.outcome = $outcome, inv.tool_calls = $tool_calls, inv.confidence = $confidence,
+    inv.agent = $agent, inv.trace = $trace, inv.verified = $verified
 MERGE (inv)-[:INVESTIGATED]->(inc)
 """
 Q_RECORD_HYPOTHESES = """
@@ -424,9 +430,15 @@ def record_investigation(ctx: ToolContext, investigation: dict[str, Any]) -> Too
     incident_id = validate_id(inv["incident_id"], "incident_id")
     resolve_incident(ctx, incident_id)
     g = ctx.graph
+    agent = str(inv.get("agent") or "engine")
+    if not AGENT_RE.match(agent):
+        raise ToolError(f"invalid agent name {agent!r}", kind="validation")
+    trace = inv.get("trace") or []
+    trace_json = json.dumps(trace, default=str)[:60000]  # compact per-step summary, kept on the node for the history view
     g.write(Q_RECORD_INVESTIGATION, {"id": inv_id, "incident_id": incident_id, "at": int(inv["at"]), "mode": str(inv["mode"]),
                                      "outcome": str(inv["outcome"]), "tool_calls": int(inv.get("tool_calls", 0)),
-                                     "confidence": float(inv.get("confidence") or 0.0)})
+                                     "confidence": float(inv.get("confidence") or 0.0), "agent": agent, "trace": trace_json,
+                                     "verified": bool(inv.get("verified", agent == "engine"))})
     hyps = [{"id": validate_id(h["id"], "hypothesis id"), "status": h["status"], "score": float(h.get("score") or 0.0),
              "kind": h["kind"], "label": h["label"]} for h in inv.get("hypotheses", [])]
     if hyps:

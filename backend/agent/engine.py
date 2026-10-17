@@ -67,11 +67,14 @@ class Hypothesis:
 
 
 class Investigator:
-    def __init__(self, graph: Graph, mode: str = "deterministic"):
+    def __init__(self, graph: Graph, mode: str = "deterministic", verify_only: list[str] | None = None):
+        """verify_only: deployment IDs proposed by an outside agent. The engine then skips memory, restricts the
+        hypotheses to exactly those candidates, runs the same checks, and does NOT write anything back."""
         if mode not in ("deterministic", "llm"):
             raise ValueError("mode must be 'deterministic' or 'llm'")
         self.graph = graph
         self.mode = mode
+        self.verify_only = verify_only
         self.ctx = ToolContext(graph, max_calls=MAX_TOOL_CALLS)
         self.states: list[dict[str, Any]] = []
         self.report: dict[str, Any] = {}
@@ -161,11 +164,12 @@ class Investigator:
         rep["graph_highlights"] = highlights
 
         # ---------------- RECALL ---------------------------------------------------------------
-        self._state("RECALL", "check memory before deriving anything")
-        mem = self._call("recall", "prior supported root causes on this dependency path (other incidents)", services=path_services,
-                         from_ts=window["from"], to_ts=window["to"], exclude_incident=incident_id)
-        if mem.rows and self._answer_from_memory(mem.rows[0], inc, affected, window, inv_id, now, all_paths):
-            return
+        if self.verify_only is None:
+            self._state("RECALL", "check memory before deriving anything")
+            mem = self._call("recall", "prior supported root causes on this dependency path (other incidents)", services=path_services,
+                             from_ts=window["from"], to_ts=window["to"], exclude_incident=incident_id)
+            if mem.rows and self._answer_from_memory(mem.rows[0], inc, affected, window, inv_id, now, all_paths):
+                return
 
         # ---------------- GATHER ---------------------------------------------------------------
         self._state("GATHER", "deployments + error timeline on the path, centrality weights")
@@ -184,22 +188,40 @@ class Investigator:
         rep["deployments"] = deps
 
         # ---------------- HYPOTHESIZE ----------------------------------------------------------
-        self._state("HYPOTHESIZE", f"{len(deps)} deployment candidate(s) + shared-dependency failure")
         hyps: list[Hypothesis] = []
+        off_path: list[Hypothesis] = []
+        if self.verify_only is not None:
+            # verifying an outside agent's claim: only its suspects, and a suspect that is not even a deployment
+            # on the dependency path inside the window fails immediately
+            self._state("HYPOTHESIZE", f"verifying {len(self.verify_only)} suspect(s) proposed by an outside agent")
+            by_id = {d["id"]: d for d in deps}
+            for sid in self.verify_only:
+                if sid not in by_id:
+                    h = Hypothesis(id=f"{inv_id}-h{len(off_path) + 1}", kind="deployment", label=f"{sid} (not a deployment on the dependency path in the window)",
+                                   suspect=sid, service=affected)
+                    h.checks.append(Check("in_window", False, f"{sid} is not a deployment to {affected} or any of its dependencies between {fmt_ts(window['from'])} and {fmt_ts(window['to'])}",
+                                          [sid, affected], hard=True))
+                    off_path.append(h)
+            deps = [by_id[s] for s in self.verify_only if s in by_id]
+        else:
+            self._state("HYPOTHESIZE", f"{len(deps)} deployment candidate(s) + shared-dependency failure")
         # most central service first, so the most load-bearing candidate is examined first
-        for n, d in enumerate(sorted(deps, key=lambda d: -(pagerank.get(d["service"]) or 0)), start=1):
+        for n, d in enumerate(sorted(deps, key=lambda d: -(pagerank.get(d["service"]) or 0)), start=len(off_path) + 1):
             hyps.append(Hypothesis(
                 id=f"{inv_id}-h{n}", kind="deployment", label=f"{d['id']} ({d['service']} {d['version']} at {fmt_ts(d['at'])})",
                 suspect=d["id"], service=d["service"],
                 details={"deployment": d, "pagerank": pagerank.get(d["service"]), "risk": max((c.get("risk") or "low" for c in d["changes"]), key=_risk_rank, default="low")},
             ))
-        shared_deps = self._shared_dependency_candidates(origin or affected, all_paths, dep_services, up.rows)
-        shared_hyp = Hypothesis(
-            id=f"{inv_id}-h{len(hyps) + 1}", kind="shared_dependency",
-            label="shared dependency failure" + (f" ({', '.join(shared_deps)})" if shared_deps else ""),
-            suspect=shared_deps[0] if len(shared_deps) == 1 else None, service=origin or affected, details={"dependencies": shared_deps},
-        )
-        hyps.append(shared_hyp)
+        shared_hyp: Hypothesis | None = None
+        if self.verify_only is None:
+            shared_deps = self._shared_dependency_candidates(origin or affected, all_paths, dep_services, up.rows)
+            shared_hyp = Hypothesis(
+                id=f"{inv_id}-h{len(hyps) + 1}", kind="shared_dependency",
+                label="shared dependency failure" + (f" ({', '.join(shared_deps)})" if shared_deps else ""),
+                suspect=shared_deps[0] if len(shared_deps) == 1 else None, service=origin or affected, details={"dependencies": shared_deps},
+            )
+            hyps.append(shared_hyp)
+        hyps.extend(off_path)
         highlights["suspects"] = [h.service for h in hyps if h.kind == "deployment"]
 
         # ---------------- FALSIFY --------------------------------------------------------------
@@ -207,7 +229,7 @@ class Investigator:
         symptom_event_ids = [eid for r in errors if r["service"] == affected for eid in r["event_ids"]]
         origin_event_ids = [eid for r in errors if r["service"] == origin for eid in r["event_ids"]]
 
-        for h in [x for x in hyps if x.kind == "deployment"]:
+        for h in [x for x in hyps if x.kind == "deployment" and "deployment" in x.details]:
             d = h.details["deployment"]
             # temporal precedence (hard)
             if first_symptom is None:
@@ -281,7 +303,8 @@ class Investigator:
                 h.checks.append(Check("history", False, f"no resolved incident shares a signature with {h.service}", [h.service], tool_step=self.ctx.tool_calls))
 
         # shared-dependency hypothesis
-        self._check_shared_dependency(shared_hyp, origin, affected, errors, sibling_results, window, boundary, up.rows)
+        if shared_hyp is not None:
+            self._check_shared_dependency(shared_hyp, origin, affected, errors, sibling_results, window, boundary, up.rows)
 
         # ---------------- DECIDE ---------------------------------------------------------------
         self._state("DECIDE", "deterministic score = passed / total checks")
@@ -306,13 +329,18 @@ class Investigator:
             rep["confidence"] = _confidence(supported[0])
         else:
             rep["outcome"] = "inconclusive"
-            rep["missing_data"] = self._missing_data(deps, errors, boundary, affected, origin, shared_hyp)
+            rep["missing_data"] = self._missing_data(deps, errors, boundary, affected, origin, shared_hyp) if shared_hyp else []
         rep["checked"] = [{"step": c.step, "tool": c.tool, "summary": c.summary, "rows": c.row_count} for c in self.ctx.trace]
 
         # ---------------- ACT ------------------------------------------------------------------
         if rep["outcome"] == "root_cause_supported":
             self._state("ACT", "propose remediation tied to the deployment + runbook (simulated; needs approval)")
             rep["action"] = self._propose_action(inv_id, rep["root_cause"], supported[0])
+
+        if self.verify_only is not None:
+            self._state("VERIFIED", "server-side verification of an outside agent's claim — nothing written")
+            rep["narrative"] = build_narrative(rep)
+            return
 
         # ---------------- REMEMBER -------------------------------------------------------------
         self._state("REMEMBER", "write Investigation, Hypotheses and evidence edges back to the graph")
@@ -332,7 +360,7 @@ class Investigator:
         path = next((p for p in all_paths if p[-1] == m["service"]), [affected, m["service"]])
         h = Hypothesis(id=f"{inv_id}-h1", kind="memory", label=f"{m['deployment_id']} ({m['service']}) — from investigation {m['investigation_id']}",
                        suspect=m["deployment_id"], service=m["service"], details={"memory": m, "path": path})
-        h.checks.append(Check("memory", True, f"investigation {m['investigation_id']} (incident {m['incident_id']}) supported this deployment with score {m['score']:.2f}"
+        h.checks.append(Check("memory", True, f"investigation {m['investigation_id']} by {m.get('agent') or 'engine'} (incident {m['incident_id']}) supported this deployment with score {m['score']:.2f}"
                               + ("; operator approved the remediation" if m.get("confirmed") else ""), [m["investigation_id"], m["hypothesis_id"], m["incident_id"]]))
         h.checks.append(Check("path", True, "dependency path " + " → ".join(path), path, hard=True))
         h.checks.append(Check("temporal_precedence", True, f"{affected} errors began {fmt_ts(first_symptom)}, after the deployment at {fmt_ts(m['deployment_at'])}",
@@ -341,7 +369,8 @@ class Investigator:
         rep["hypotheses"] = [h.to_dict()]
         rep["outcome"] = "answered_from_memory"
         rep["memory"] = {"used": True, "investigation_id": m["investigation_id"], "incident_id": m["incident_id"], "incident_title": m["incident_title"],
-                         "learned_at": m["learned_at"], "confirmed": bool(m.get("confirmed")), "action_status": m.get("action_status")}
+                         "learned_at": m["learned_at"], "confirmed": bool(m.get("confirmed")), "action_status": m.get("action_status"),
+                         "agent": m.get("agent") or "engine", "verified": bool(m.get("verified", True))}
         rep["root_cause"] = {"deployment_id": m["deployment_id"], "version": m.get("deployment_version"), "deployment_at": m["deployment_at"], "service": m["service"],
                              "changes": m.get("changes", []), "path": path, "hypothesis_id": h.id}
         rep["confidence"] = _confidence(h)
@@ -430,7 +459,9 @@ class Investigator:
         rep = self.report
         payload = {
             "id": inv_id, "incident_id": incident_id, "at": now, "mode": self.mode, "outcome": rep["outcome"],
-            "tool_calls": self.ctx.tool_calls + 1, "confidence": rep["confidence"]["share"],
+            "tool_calls": self.ctx.tool_calls + 1, "confidence": rep["confidence"]["share"], "agent": "engine", "verified": True,
+            "trace": [{"step": c.step, "tool": c.tool, "args": c.args, "summary": c.summary, "rows": c.row_count, "ms": c.duration_ms, "purpose": c.purpose}
+                      for c in self.ctx.trace],
             "hypotheses": [{"id": h.id, "status": h.status, "score": h.score, "kind": h.kind, "label": h.label, "suspect": h.suspect,
                             "checks": [{"name": c.name, "passed": c.passed, "evidence_ids": c.evidence_ids} for c in h.checks if c.passed is not None]} for h in hyps],
             "action": rep["action"],
@@ -466,6 +497,28 @@ class Investigator:
         rep["tool_calls"] = self.ctx.tool_calls
         rep["duration_ms"] = round((time.perf_counter() - self._t0) * 1000, 1)
         return rep
+
+
+# ---------------------------------------------------------------------- server-side verification
+def verify_candidates(graph: Graph, incident_id: str, suspects: list[str]) -> dict[str, Any]:
+    """Re-run the rule-based checks on deployment IDs proposed by an outside agent (MCP guest).
+
+    Nothing is written. Returns per-suspect status/score/checks, the overall confidence of the best
+    supported suspect, and the remediation the engine would propose for it.
+    """
+    suspects = [validate_id(s, "suspect") for s in suspects][:8]
+    inv = Investigator(graph, verify_only=suspects)
+    rep = inv.run(incident_id=incident_id)
+    if rep["outcome"] == "unknown_entity":
+        raise ToolError(rep.get("error", "unknown entity"), kind="unresolved", unresolved=[incident_id])
+    hyps = [{"suspect": h["suspect"], "status": h["status"], "score": h["score"], "label": h["label"],
+             "checks": [{"name": c["name"], "passed": c["passed"], "detail": c["detail"], "evidence_ids": c["evidence_ids"]} for c in h["checks"] if c["passed"] is not None]}
+            for h in rep["hypotheses"] if h["kind"] == "deployment"]
+    action = rep.get("action")
+    if action:
+        action = {k: v for k, v in action.items() if k != "id"}
+    return {"hypotheses": hyps, "confidence": rep["confidence"]["share"], "checks_run": sum(len(h["checks"]) for h in hyps),
+            "duration_ms": rep.get("duration_ms", 0), "action": action, "outcome": rep["outcome"], "root_cause": rep.get("root_cause")}
 
 
 # ---------------------------------------------------------------------- scoring helpers

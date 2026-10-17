@@ -73,7 +73,7 @@ def build_narrative(report: dict[str, Any]) -> str:
         mem = report["memory"]
         rc = report["root_cause"]
         lines.append(
-            f"Answered from memory: investigation {mem['investigation_id']} (incident {mem['incident_id']}, learned {fmt_date(mem['learned_at'])}) "
+            f"Answered from memory: investigation {mem['investigation_id']} by {mem.get('agent') or 'engine'} (incident {mem['incident_id']}, learned {fmt_date(mem['learned_at'])}) "
             f"already established deployment {rc['deployment_id']} to {rc['service']} as the best-supported explanation"
             + (" and an operator approved the remediation." if mem.get("confirmed") else ".")
         )
