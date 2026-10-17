@@ -32,7 +32,7 @@ MATCH (i:Incident {id: $id}) RETURN count(i)
 | 6 | `similar_incidents` | no | History check by graph structure, not text similarity: a past incident with the same signature on the same service, resolved by a rollback, is strong evidence for the same fix. |
 | 7 | `path_between` | no | Path check: a candidate can only cause the symptom if the symptom service reaches it through dependencies. Empty result = not connected. |
 | 8 | `critical_services` | no | Weights candidates: a change on a high-centrality service has a wider blast radius, so it is examined first and its score is annotated. |
-| 9 | `recall` | no | Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived. |
+| 9 | `recall` | no | Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived. Knowledge transfers across incidents; re-investigating the same incident always re-derives. |
 | 10 | `record_investigation` | yes | This is the memory. The next investigation's `recall` reads exactly these nodes — no seed data involved. |
 | 11 | `record_action` | yes | Closes the loop: a human-approved action is recorded on the graph and becomes stronger memory for later investigations. |
 
@@ -180,16 +180,17 @@ RETURN node.name AS service, score ORDER BY score DESC
 
 ### 9. `recall`
 
-Prior investigations whose supported root-cause hypothesis points at a deployment on one of these services inside the window.
+Prior investigations of OTHER incidents whose supported root-cause hypothesis points at a deployment on one of these services inside the window.
 
-**Proves:** Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived.
+**Proves:** Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived. Knowledge transfers across incidents; re-investigating the same incident always re-derives.
 
-**Arguments:** `services` (string[]), `from_ts` (epoch seconds), `to_ts` (epoch seconds)
+**Arguments:** `services` (string[]), `from_ts` (epoch seconds), `to_ts` (epoch seconds), `exclude_incident` (string (the incident being investigated))
 
 ```cypher
 MATCH (inv:Investigation)-[:CONSIDERED]->(h:Hypothesis {status: 'supported'})-[:SUSPECTS]->(d:Deployment)-[:DEPLOYED_TO]->(s:Service)
 WHERE s.name IN $services AND d.at >= $from AND d.at <= $to
 MATCH (inv)-[:INVESTIGATED]->(inc:Incident)
+WHERE inc.id <> $exclude_incident
 OPTIONAL MATCH (inv)-[:PROPOSED]->(a:Action)
 OPTIONAL MATCH (d)-[:INCLUDES]->(cc:CodeChange)
 RETURN inv.id, inv.at, inv.outcome, inc.id, inc.title, h.id, h.score, h.confirmed, d.id, d.at, d.version, s.name,

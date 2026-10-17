@@ -50,6 +50,13 @@ def test_scenario_b_answered_from_memory(fresh_memory, scenarios):
     assert "answered from memory" in r["narrative"].lower()
 
 
+def test_rerunning_same_incident_does_not_answer_from_its_own_memory(fresh_memory, scenarios):
+    first = _run(fresh_memory, incident_id=scenarios["A"]["incident_id"])
+    second = _run(fresh_memory, incident_id=scenarios["A"]["incident_id"])
+    assert first["outcome"] == second["outcome"] == "root_cause_supported"
+    assert second["memory"] is None and second["tool_calls"] == first["tool_calls"]
+
+
 def test_scenario_b_without_memory_is_a_full_investigation(fresh_memory, scenarios):
     r = _run(fresh_memory, incident_id=scenarios["B"]["incident_id"])
     assert r["outcome"] == "root_cause_supported"  # payments-api deploy is still derivable the long way

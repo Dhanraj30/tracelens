@@ -162,7 +162,8 @@ class Investigator:
 
         # ---------------- RECALL ---------------------------------------------------------------
         self._state("RECALL", "check memory before deriving anything")
-        mem = self._call("recall", "prior supported root causes on this dependency path", services=path_services, from_ts=window["from"], to_ts=window["to"])
+        mem = self._call("recall", "prior supported root causes on this dependency path (other incidents)", services=path_services,
+                         from_ts=window["from"], to_ts=window["to"], exclude_incident=incident_id)
         if mem.rows and self._answer_from_memory(mem.rows[0], inc, affected, window, inv_id, now, all_paths):
             return
 

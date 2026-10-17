@@ -46,6 +46,9 @@ class ToolCall:
     error: Optional[str] = None
     summary: str = ""
     purpose: str = ""
+    evidence_ids: list[str] = field(default_factory=list)  # lets the UI highlight what this step touched
+    paths: list[list[str]] = field(default_factory=list)
+    rows_preview: list[dict[str, Any]] = field(default_factory=list)  # first rows, for the timeline
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -116,6 +119,9 @@ class ToolContext:
             raise ToolError(f"{name} failed: {exc}", kind="query") from exc
         call = self._log(step, spec, args, start_idx, t0, len(result.rows), "ok", None, purpose)
         call.summary = result.extra.get("summary", f"{len(result.rows)} row(s)")
+        call.evidence_ids = list(dict.fromkeys(result.evidence_ids))
+        call.paths = result.paths
+        call.rows_preview = _jsonable(result.rows[:8])
         return result
 
     def _log(self, step, spec, args, start_idx, t0, rows, status, error, purpose) -> ToolCall:

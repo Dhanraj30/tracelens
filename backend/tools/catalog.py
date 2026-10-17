@@ -322,6 +322,7 @@ Q_RECALL = """
 MATCH (inv:Investigation)-[:CONSIDERED]->(h:Hypothesis {status: 'supported'})-[:SUSPECTS]->(d:Deployment)-[:DEPLOYED_TO]->(s:Service)
 WHERE s.name IN $services AND d.at >= $from AND d.at <= $to
 MATCH (inv)-[:INVESTIGATED]->(inc:Incident)
+WHERE inc.id <> $exclude_incident
 OPTIONAL MATCH (inv)-[:PROPOSED]->(a:Action)
 OPTIONAL MATCH (d)-[:INCLUDES]->(cc:CodeChange)
 RETURN inv.id, inv.at, inv.outcome, inc.id, inc.title, h.id, h.score, h.confirmed, d.id, d.at, d.version, s.name,
@@ -332,16 +333,17 @@ ORDER BY inv.at DESC
 
 @tool(
     "recall",
-    "Prior investigations whose supported root-cause hypothesis points at a deployment on one of these services inside the window.",
-    "Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived.",
+    "Prior investigations of OTHER incidents whose supported root-cause hypothesis points at a deployment on one of these services inside the window.",
+    "Memory: a root cause the agent already established (and a human may have confirmed) on the same dependency path can be reused instead of re-derived. Knowledge transfers across incidents; re-investigating the same incident always re-derives.",
     [Q_RECALL],
-    {"services": "string[]", "from_ts": "epoch seconds", "to_ts": "epoch seconds"},
+    {"services": "string[]", "from_ts": "epoch seconds", "to_ts": "epoch seconds", "exclude_incident": "string (the incident being investigated)"},
 )
-def recall(ctx: ToolContext, services: list[str], from_ts: int, to_ts: int) -> ToolResult:
+def recall(ctx: ToolContext, services: list[str], from_ts: int, to_ts: int, exclude_incident: str = "") -> ToolResult:
     services = validate_names(services)
     from_ts, to_ts = validate_epoch(from_ts, "from_ts"), validate_epoch(to_ts, "to_ts")
+    exclude_incident = validate_id(exclude_incident, "exclude_incident") if exclude_incident else ""
     resolve_services(ctx, services)
-    rows, _ = ctx.graph.read(Q_RECALL, {"services": services, "from": from_ts, "to": to_ts})
+    rows, _ = ctx.graph.read(Q_RECALL, {"services": services, "from": from_ts, "to": to_ts, "exclude_incident": exclude_incident})
     cols = ["investigation_id", "learned_at", "outcome", "incident_id", "incident_title", "hypothesis_id", "score", "confirmed",
             "deployment_id", "deployment_at", "deployment_version", "service", "action_id", "action_status", "action_kind",
             "runbook_id", "changes"]

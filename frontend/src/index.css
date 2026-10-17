@@ -1,0 +1,70 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+:root {
+  --bg: #0b0f17;
+  --panel: #111827;
+  --panel-2: #0f172a;
+  --border: #1f2937;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --accent: #38bdf8;
+  --ok: #34d399;
+  --bad: #f87171;
+  --warn: #fbbf24;
+  --violet: #a78bfa;
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: #243041; border-radius: 8px; }
+
+/* React Flow theming */
+.react-flow { background: var(--panel-2); }
+.react-flow__attribution { display: none; }
+.react-flow__edge-path { stroke: #334155; stroke-width: 1.5; }
+.react-flow__edge.visited .react-flow__edge-path { stroke: #38bdf8; stroke-width: 2; }
+.react-flow__edge.root .react-flow__edge-path { stroke: #f87171; stroke-width: 3.5; filter: drop-shadow(0 0 6px rgba(248,113,113,.7)); }
+.react-flow__edge.async .react-flow__edge-path { stroke-dasharray: 6 4; }
+.react-flow__edge.dim .react-flow__edge-path { stroke: #1f2937; }
+.react-flow__edge.root .react-flow__edge-path { animation: dashflow 1.2s linear infinite; stroke-dasharray: 10 6; }
+@keyframes dashflow { to { stroke-dashoffset: -32; } }
+
+.svc-node {
+  min-width: 128px; padding: 8px 12px; border-radius: 10px; border: 1.5px solid #334155;
+  background: #0b1220; color: var(--text); font-size: 12px; line-height: 1.2; transition: all .35s ease;
+  box-shadow: 0 1px 0 rgba(255,255,255,.03) inset;
+}
+.svc-node .name { font-weight: 600; font-size: 13px; }
+.svc-node .tier { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+.svc-node.dim { opacity: .35; }
+.svc-node.visited { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56,189,248,.15); }
+.svc-node.suspect { border-color: #fbbf24; box-shadow: 0 0 0 3px rgba(251,191,36,.18); }
+.svc-node.rejected { border-color: #475569; background: #0b1220; }
+.svc-node.rejected .name { text-decoration: line-through; color: var(--muted); }
+.svc-node.root { border-color: #f87171; background: #1a0f12; box-shadow: 0 0 0 4px rgba(248,113,113,.25), 0 0 24px rgba(248,113,113,.35); }
+.svc-node.healthy { border-color: #34d399; }
+.svc-node.boundary { border-style: dashed; border-color: #a78bfa; }
+.svc-node.affected { border-color: #f472b6; box-shadow: 0 0 0 3px rgba(244,114,182,.18); }
+.svc-node.evidence { outline: 2px solid #fff; outline-offset: 2px; }
+.svc-node .chip { display: inline-block; margin-top: 5px; margin-right: 4px; padding: 1px 6px; border-radius: 999px; font-size: 10px; border: 1px solid #334155; color: #cbd5e1; }
+.svc-node .chip.deploy { border-color: #fbbf24; color: #fde68a; }
+.svc-node .chip.err { border-color: #f87171; color: #fca5a5; }
+.svc-node .chip.ok { border-color: #34d399; color: #a7f3d0; }
+.svc-node .chip.ruled { border-color: #64748b; color: #94a3b8; }
+
+.fade-in { animation: fade .4s ease both; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: none; } }
+.pulse { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
