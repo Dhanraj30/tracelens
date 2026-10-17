@@ -1,0 +1,41 @@
+# Ground truth for the demo scenarios. The agent never reads this file — it must reach
+# these answers through graph queries. Tests assert against it.
+scenarios:
+  A:
+    name: "Checkout requests are failing (red herring)"
+    incident_id: inc-1042
+    affected_service: checkout
+    expected_outcome: root_cause_supported
+    root_cause_deployment: dep-pay-1352
+    root_cause_code_change: cc-pool-size
+    root_cause_service: payments-api
+    rejected_deployments: [dep-chk-1405, dep-cart-1320]
+    rejected_checks:
+      dep-chk-1405: temporal_precedence     # checkout errors (14:01) began before the checkout deploy (14:05)
+      dep-cart-1320: origin                 # earliest errors sit at payments-api, which cart does not reach
+    similar_incident: inc-0877
+    runbook: rb-pool-sizing
+    remediation_kind: rollback
+  B:
+    name: "Refunds failing (answered from memory)"
+    incident_id: inc-1043
+    affected_service: refunds-worker
+    requires: A
+    expected_outcome: answered_from_memory
+    root_cause_deployment: dep-pay-1352
+    max_tool_calls: 6          # must be strictly fewer than Scenario A's full run
+  C:
+    name: "Search results are empty (incomplete evidence)"
+    incident_id: inc-1044
+    affected_service: search
+    expected_outcome: inconclusive
+    boundary_service: vendor-search-index
+    missing_data_mentions: [vendor-search-index]
+  unknown_incident:
+    incident_id: inc-9999
+    expected_outcome: unknown_entity
+    expected_tool_calls: 0
+  unknown_service:
+    service: warehouse-robot
+    expected_outcome: unknown_entity
+    expected_tool_calls: 0

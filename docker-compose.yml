@@ -1,0 +1,30 @@
+services:
+  falkordb:
+    image: falkordb/falkordb@sha256:b0bdcac2cbaff989e77cb0610439b7a9289e86de033ccbbd4368b66fb680ae7a  # falkordb/falkordb:latest pulled 2026-10-17, graph module v4.22.1
+    container_name: tracelens-falkordb
+    ports:
+      - "6379:6379"   # Redis protocol
+      - "3000:3000"   # FalkorDB Browser
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    container_name: tracelens-app
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    environment:
+      FALKORDB_HOST: falkordb
+      FALKORDB_PORT: "6379"
+      GRAPH_NAME: tracelens
+      AUTO_SEED: "true"
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-20}
+    ports:
+      - "8000:8000"
