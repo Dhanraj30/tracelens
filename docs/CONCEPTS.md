@@ -172,6 +172,18 @@ Every fallback hop is recorded in the report and shown in the UI ("LLM provider 
 
 ---
 
+## 13. Evals
+
+**What it is.** Measuring an agent against known answers, repeatedly, so claims like "it finds the root cause" are numbers rather than anecdotes.
+
+**Do we use it?** Yes: `evals/run_evals.py`. Five cases (Scenario A, B after A, B alone, C, unknown id), run through the LangGraph guest over MCP and through the deterministic engine as a baseline. Every run and mode gets its own freshly seeded tenant graph (`tracelens:eval-<run>-<mode>`), deleted afterwards, so memory cannot leak between runs. The scorer is the only code that reads `tests/scenarios.yaml`.
+
+**Metrics.** Verified-correct rate (the server's re-verification matches the truth, and for A the checkout deploy is not among the supported suspects), outcome match, ruled-out correct (and *how*: proposed-and-rejected vs never-proposed), tool calls, LLM requests, latency, fallbacks (Groq → Gemini), tool calls rejected by catalog validation, narratives rejected by the validator (baseline only; the guest writes no narrative), proposals rejected by the server verifier.
+
+**Two modes.** Offline replays recorded tool-call sequences through a fake chat model (Scenario A replays the real live run); it runs in pytest and exercises the MCP server, the validation and the verifier, not the LLM. Live (`RUN_LIVE_LLM=1`) calls the real models with a hard request budget, request spacing for free-tier limits, and one 429 retry before falling back.
+
+**Why.** The guest's value claim is "an LLM can pick the tools and the graph still decides"; evals are how that claim is checked, and `docs/EVALS.md` carries the honest failure list. We never change agent logic or prompts to make evals pass.
+
 ## Quick reference
 
 | Concept | Used? | Where | One-line why |
@@ -189,3 +201,23 @@ Every fallback hop is recorded in the report and shown in the UI ("LLM provider 
 | Graph algorithms | Yes | `path_between`, `critical_services` | SPpaths, pageRank, betweenness |
 | Deterministic seed + ground truth | Yes | `seed.py`, `tests/scenarios.yaml` | provable, testable, no hardcoding |
 | Human-in-the-loop | Yes | `/api/actions/{id}/approve` | simulated execution after a click |
+
+
+
+strongest ones are guardrails, tool calling and memory, Here's each one in plain words:
+
+| # | Concept | Used? | How it shows up in TraceLens |
+|---|---|---|---|
+| 1 | RAG | Partly (graph version) | No text search or embeddings. The agent "retrieves" evidence by walking the graph, then the AI writes the summary only from that evidence. People call this GraphRAG-style. |
+| 2 | Agents | Yes | The investigation engine is an agent: it decides, tests, acts and remembers, in 9 steps. The LangGraph guest is a second agent that chooses its own tools.* |
+| 3 | Evals | Partly | Tests with known right answers check that the agent solves Scenarios A, B and C correctly, and that the validator catches invented facts. There's no eval yet of how well the AI agent performs across many runs. |
+| 4 | Observability and tracing | Yes | Every tool call is logged with the exact Cypher, arguments, rows returned and time taken, plus every AI fallback. You see it in the UI timeline ("Show Cypher"). No external tracing tool is used. |
+| 5 | Guardrails and security | Yes, your strongest | The AI can't write queries. Names are checked against the graph, reads are read-only, AI text is fact-checked, outside agents' answers are re-verified*, there are call caps and timeouts, actions need a human click, and each tenant gets its own graph.* |
+| 6 | Fine-tuning | No | You use free models as they are. It's not needed, because the graph does the reasoning, not the model. |
+| 7 | Caching | Barely | Not a real feature. The closest is replaying a recorded AI run in the deployed demo to save quota. FalkorDB is fast enough that nothing else needs caching. |
+| 8 | Memory | Yes | Investigations, hypotheses (including rejected ones) and actions are saved in the graph. The agent checks memory first, and agents share it with each other.* |
+| 9 | Human feedback loops | Yes | The Approve button marks a finding as human-confirmed, and approved fixes become past incidents the agent learns from.* |
+| 10 | Cost and performance | Yes | Free Groq and Gemini tiers, deterministic mode by default, AI only where it adds value, capped tool calls, a small evidence package sent to the model, and offline tests that spend no quota. |
+| 11 | Tool calling | Yes, the backbone | 11 fixed tools, exposed over MCP. The LangGraph agent picks tools using function calling.* |
+| 12 | Production architecture | Partly | Docker Compose, health checks, auto-seeding, secrets in env files, timeouts and tests. But it's demo-grade: no login, synthetic data, and the rollback is simulated. |
+

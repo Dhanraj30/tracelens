@@ -99,12 +99,19 @@ Optional, OpenAI-compatible, free tier (Groq by default). It only writes the nar
 ### Tenants
 - `?tenant=acme-eu` → graph key `tracelens:acme-eu`, slug-validated, auto-seeded. Memory written in one key is invisible in another (test). It is FalkorDB multi-graph, not auth.
 
+### Evals (`evals/run_evals.py`, report in `docs/EVALS.md`)
+- Five cases × two modes (guest, baseline), each run in its own freshly seeded tenant graph that is deleted afterwards. "B after A" is the only case that intentionally reuses a graph.
+- "Verified correct" for the guest means the **server's** re-verification of what the guest proposed matches the truth; the guest never sees the truth. For A it also requires that the checkout deploy is not supported, and the report says whether the guest never proposed it or proposed it and got rejected.
+- Offline mode = replay through a fake model (no network): it proves the harness, the MCP server, validation and verification, not the LLM. Live mode = real models under a request budget and spacing. Be ready to say which numbers come from which mode.
+- The honest sentence: the deterministic engine is the product; the guest is the demonstration that an LLM can choose tools over MCP without being able to corrupt the verdict. The eval tables show both.
+
 ## What you must be able to explain (checklist)
 - [ ] How a guest agent's conclusion gets into memory, and why a wrong one cannot.
 - [ ] Which 7 tools the LangGraph guest chose live, which 2 it skipped, and why the verdict still matched.
 - [ ] What approving an action writes to the graph, and how Scenario D finds it a week later (history, not recall).
 - [ ] Episodic vs semantic vs procedural, mapped to node labels.
 - [ ] What `?tenant=` does and does not do.
+- [ ] What the eval numbers mean, offline vs live, and why only the scorer reads the ground truth.
 
 - [ ] Walk through Scenario A's 11 tool calls and say what each query returns.
 - [ ] Explain why `dep-chk-1405` is rejected (temporal) and why `dep-cart-1320` is rejected (origin).

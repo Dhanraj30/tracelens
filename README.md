@@ -121,6 +121,10 @@ Per candidate deployment: **temporal precedence** (hard), **dependency path** vi
 
 **Confidence means "share of checks passed" — not a probability.** We never say "proven cause"; we say *best-supported explanation* and label items *supported / ruled out / inconclusive*. Rejected hypotheses are kept, with the evidence that rejected them.
 
+## Evals
+
+`python -m evals.run_evals` scores the LangGraph guest (LLM tool selection over MCP) and the deterministic engine on five cases (A red herring, B after A, B alone, C incomplete evidence, unknown id), each in a freshly seeded, isolated tenant graph; only the scorer reads the ground truth. Offline mode replays recorded tool-call sequences (no network, runs in pytest); live mode needs `RUN_LIVE_LLM=1` and is budget-capped. Results: [`docs/EVALS.md`](docs/EVALS.md).
+
 ## Memory (Track 02), in the judges' vocabulary
 
 - **Episodic:** `Investigation → Hypothesis → SUPPORTED_BY / REJECTED_BY` with time and provenance (`agent = engine | mcp:<name>`). Read by `recall`; shown in the "Past investigations" tab.

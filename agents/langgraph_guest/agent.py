@@ -92,7 +92,7 @@ def _structured(msg: Any) -> dict[str, Any] | None:
 
 
 async def run_guest(incident_id: str, *, server: Any = None, model: Any = None, fallbacks: list[Any] | None = None,
-                    log=print, save_recording: bool = False) -> dict[str, Any]:
+                    log=print, save_recording: bool = False, callbacks: list[Any] | None = None) -> dict[str, Any]:
     """Run the guest against `server` (an MCPServer instance for in-process tests, or None = stdio subprocess).
 
     Returns {"tool_calls": [...in order...], "recorded": <record_investigation result>, "final": str, "model_used": str, "duration_s": float}.
@@ -119,7 +119,7 @@ async def run_guest(incident_id: str, *, server: Any = None, model: Any = None, 
         agent = create_agent(model, tools, system_prompt=SYSTEM_PROMPT, middleware=middleware)
         result = await agent.ainvoke(
             {"messages": [{"role": "user", "content": f"Investigate incident {incident_id}. Gather evidence with the tools, then record your conclusion."}]},
-            config={"recursion_limit": 60},
+            config={"recursion_limit": 60, **({"callbacks": callbacks} if callbacks else {})},
         )
 
     # ---- read the transcript: tool calls in order, with the model's stated reasons ----
