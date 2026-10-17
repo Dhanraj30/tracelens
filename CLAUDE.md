@@ -1,6 +1,6 @@
 # TraceLens — project notes for Claude Code
 
-Hackathon project (Graph Hacks: Context for AI Agents, WeMakeDevs × FalkorDB). Full brief: `TRACELENS_PROMPT (1).md`. Plan: `PLAN.md`.
+Hackathon project (Graph Hacks: Context for AI Agents, WeMakeDevs × FalkorDB). The build brief is kept outside the repo (`D:\graph-hack\TRACELENS_PROMPT.md`). Plan: `PLAN.md`.
 
 ## Non-negotiables
 - FalkorDB must do real work: every conclusion comes from a catalog tool (graph query / algorithm). Never hardcode root causes; ground truth lives only in `tests/scenarios.yaml`.
