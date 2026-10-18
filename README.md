@@ -8,7 +8,7 @@ Built for **Graph Hacks: Context for AI Agents** (WeMakeDevs × FalkorDB), 17–
 
 **Tracks entered:** **Track 01 – Agents That Act on Connected Data** (primary) · **Track 02 – Agent Memory and Coordination** (Scenario B below).
 
-**Demo video:** _link goes here_ · **Live demo:** _local setup below (live deployment optional)_
+**Demo video:** [link](https://www.loom.com/share/84a6353c64164b289e0a032379d3435e) · **Live demo:** _local setup below (live deployment optional)_
 
 ---
 
