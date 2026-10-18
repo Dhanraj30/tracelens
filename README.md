@@ -1,5 +1,7 @@
 # TraceLens
 
+***AI Investigator for Root Cause Analysis***
+
 **Symptom → root cause, traced and checked in the FalkorDB graph.**
 
 > *TraceLens doesn't just tell you what's broken — it walks the graph to prove why, shows you the suspects it ruled out, and remembers the answer next time.*
@@ -18,14 +20,14 @@ When checkout breaks at 14:10, everyone looks at the deploy to checkout at 14:05
 
 ## What TraceLens does
 
-| Reference demo ("Blast Radius") | TraceLens |
-|---|---|
-| Walks *downstream* impact | Walks *upstream* cause — from symptom to root cause |
-| Returns facts | Generates **competing hypotheses and falsifies them** with graph checks |
-| Lists recent changes | **Rejects the obvious suspect** with timestamped, traversable evidence |
-| — | Finds past incidents by **shared graph structure** (same `ErrorSignature` / `Service` / `CodeChange` file), not text similarity |
-| Saves findings | **Learns**: confirmed root causes are written back to the graph and shorten the next investigation |
-| — | **Acts**: proposes a rollback tied to a specific `Deployment` + `Runbook`, executed (simulated) only after a human click |
+| Reference demo ("Blast Radius") | TraceLens                                                                                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Walks *downstream* impact     | Walks *upstream* cause — from symptom to root cause                                                                                      |
+| Returns facts                   | Generates **competing hypotheses and falsifies them** with graph checks                                                               |
+| Lists recent changes            | **Rejects the obvious suspect** with timestamped, traversable evidence                                                                |
+| —                              | Finds past incidents by **shared graph structure** (same `ErrorSignature` / `Service` / `CodeChange` file), not text similarity |
+| Saves findings                  | **Learns**: confirmed root causes are written back to the graph and shorten the next investigation                                    |
+| —                              | **Acts**: proposes a rollback tied to a specific `Deployment` + `Runbook`, executed (simulated) only after a human click          |
 
 Every conclusion comes from a Cypher query or a graph algorithm. The agent never writes Cypher. Remove FalkorDB and nothing works.
 
@@ -62,13 +64,13 @@ pip install -r agents/langgraph_guest/requirements.txt   # optional: the LangGra
 
 ## The three scenarios
 
-| | Incident | What the agent must do | Outcome |
-|---|---|---|---|
-| **A** | `inc-1042` Checkout requests are failing | Reject the checkout deploy (errors began 14:01, deploy 14:05), reject the cart deploy (earliest errors sit at payments-api, which cart never reaches), support the payments-api deploy that cut the DB pool 50 → 5, exonerate the shared database via a healthy sibling, match incident `inc-0877` through a shared `ErrorSignature`, propose rollback + runbook | `root_cause_supported`, 5/5 checks, 11 tool calls |
-| **B** | `inc-1043` Refunds failing (run after A) | `recall` the Investigation A wrote back, re-verify the timeline for refunds-worker, answer with "learned <date>" | `answered_from_memory`, 5 tool calls |
-| **C** | `inc-1044` Search results are empty | No deployments in window; the path leaves the modeled graph at an external vendor. Say so, list what was checked and what data would resolve it | `inconclusive` |
-| **D** | `inc-1051` Checkout failing again, a week later (run after approving A's rollback) | The payments-api deploy is a week old, so no recall; instead the history check finds the `Resolution` TraceLens itself wrote on approval, through the shared `ErrorSignature`, and reuses its runbook. The auth deploy is ruled out by origin | `root_cause_supported` with "learned by TraceLens" history |
-| — | `inc-9999` / `warehouse-robot` | Name does not resolve → stop | `unknown_entity`, **0 tool calls** |
+|             | Incident                                                                             | What the agent must do                                                                                                                                                                                                                                                                                                                                                | Outcome                                                      |
+| ----------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **A** | `inc-1042` Checkout requests are failing                                           | Reject the checkout deploy (errors began 14:01, deploy 14:05), reject the cart deploy (earliest errors sit at payments-api, which cart never reaches), support the payments-api deploy that cut the DB pool 50 → 5, exonerate the shared database via a healthy sibling, match incident `inc-0877` through a shared `ErrorSignature`, propose rollback + runbook | `root_cause_supported`, 5/5 checks, 11 tool calls          |
+| **B** | `inc-1043` Refunds failing (run after A)                                           | `recall` the Investigation A wrote back, re-verify the timeline for refunds-worker, answer with "learned <date></date>"                                                                                                                                                                                                                                             | `answered_from_memory`, 5 tool calls                       |
+| **C** | `inc-1044` Search results are empty                                                | No deployments in window; the path leaves the modeled graph at an external vendor. Say so, list what was checked and what data would resolve it                                                                                                                                                                                                                       | `inconclusive`                                             |
+| **D** | `inc-1051` Checkout failing again, a week later (run after approving A's rollback) | The payments-api deploy is a week old, so no recall; instead the history check finds the `Resolution` TraceLens itself wrote on approval, through the shared `ErrorSignature`, and reuses its runbook. The auth deploy is ruled out by origin                                                                                                                     | `root_cause_supported` with "learned by TraceLens" history |
+| —          | `inc-9999` / `warehouse-robot`                                                   | Name does not resolve → stop                                                                                                                                                                                                                                                                                                                                         | `unknown_entity`, **0 tool calls**                   |
 
 Cross-agent variants: run Scenario A from the MCP client (`python -m backend.mcp_client_demo inc-1042`) or the LangGraph guest (`RUN_LIVE_LLM=1 python -m agents.langgraph_guest.agent inc-1042`), then Scenario B in the dashboard answers "learned by mcp:client-demo / mcp:langgraph". The server re-verifies every suspect a guest proposes before storing it.
 
