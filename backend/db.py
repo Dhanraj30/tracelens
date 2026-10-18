@@ -60,7 +60,13 @@ class Graph:
 
     def __init__(self, name: str | None = None, host: str | None = None, port: int | None = None):
         self.name = name or settings.graph_name
-        self._db = FalkorDB(host=host or settings.falkordb_host, port=port or settings.falkordb_port)
+        self._db = FalkorDB(
+            host=host or settings.falkordb_host,
+            port=port or settings.falkordb_port,
+            username=settings.falkordb_username or None,
+            password=settings.falkordb_password or None,
+            ssl=settings.falkordb_ssl,
+        )
         self._g = self._db.select_graph(self.name)
         self.records: list[QueryRecord] = []
 

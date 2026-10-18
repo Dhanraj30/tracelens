@@ -17,6 +17,9 @@ def _env(name: str, default: str = "") -> str:
 class Settings:
     falkordb_host: str = field(default_factory=lambda: _env("FALKORDB_HOST", "localhost"))
     falkordb_port: int = field(default_factory=lambda: int(_env("FALKORDB_PORT", "6379")))
+    falkordb_username: str = field(default_factory=lambda: _env("FALKORDB_USERNAME", ""))
+    falkordb_password: str = field(default_factory=lambda: _env("FALKORDB_PASSWORD", ""))
+    falkordb_ssl: bool = field(default_factory=lambda: _env("FALKORDB_SSL", "false").lower() == "true")
     graph_name: str = field(default_factory=lambda: _env("GRAPH_NAME", "tracelens"))
     auto_seed: bool = field(default_factory=lambda: _env("AUTO_SEED", "true").lower() == "true")
     query_timeout_ms: int = field(default_factory=lambda: int(_env("QUERY_TIMEOUT_MS", "5000")))
